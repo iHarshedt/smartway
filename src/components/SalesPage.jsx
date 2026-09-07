@@ -138,7 +138,7 @@ export default function SalesPage({ onOpenCalculator, onOpenPayment }) {
     const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
     const message = encodeURIComponent(
       `Hello ${deal.customerName},\n\n` +
-      `Greetings from *Solar Tech*! ☀️\n\n` +
+      `Greetings from *Smart Way*! ☀️\n\n` +
       `Here is the official summary of your Rooftop Solar Project:\n` +
       `• *KSEB Consumer #:* ${deal.consumerNo || 'Pending'}\n` +
       `• *Section:* ${deal.section || 'N/A'}\n` +
@@ -147,8 +147,8 @@ export default function SalesPage({ onOpenCalculator, onOpenPayment }) {
       `• *Paid Amount:* ₹${deal.paidAmount ? deal.paidAmount.toLocaleString() : '0'} /-\n` +
       (deal.balanceAmount !== undefined ? `• *Balance Due:* ₹${deal.balanceAmount.toLocaleString()} /-\n` : '') +
       (deal.ksebStatus ? `• *KSEB Status:* ${deal.ksebStatus}\n` : '') +
-      `\nAssigned Engineer: ${deal.salesEngineer || 'Solar Tech Team'}\n\n` +
-      `Best regards,\nSolar Tech`
+      `\nAssigned Engineer: ${deal.salesEngineer || 'Smart Way Team'}\n\n` +
+      `Best regards,\nSmart Way`
     );
     window.open(`https://wa.me/${phoneWithCountry}?text=${message}`, '_blank');
   };
