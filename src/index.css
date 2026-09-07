@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+@layer base {
+  :root, .dark {
+    --app-bg: #181715;
+    --app-surface: #22201D;
+    --app-surface-subtle: #181715;
+    --app-surface-hover: #292723;
+    --app-border: #36332E;
+    --app-border-subtle: #2D2B26;
+    --app-border-hover: #48443E;
+    
+    --app-text-primary: #EDE8DF;
+    --app-text-secondary: #A39E93;
+    --app-text-muted: #726D64;
+    
+    --app-accent: #CC785C;
+    --app-accent-hover: #DE886D;
+    --app-accent-subtle: rgba(204, 120, 92, 0.15);
+    --app-accent-text: #E5957C;
+    --app-accent-border: rgba(204, 120, 92, 0.3);
+    
+    --app-sage: #7BAE7F;
+    --app-sage-subtle: rgba(123, 174, 127, 0.15);
+    --app-sage-border: rgba(123, 174, 127, 0.3);
+    
+    --app-ochre: #D4A359;
+    --app-ochre-subtle: rgba(212, 163, 89, 0.15);
+    --app-ochre-border: rgba(212, 163, 89, 0.3);
+    
+    --app-rose: #D97066;
+    --app-rose-subtle: rgba(217, 112, 102, 0.15);
+    --app-rose-border: rgba(217, 112, 102, 0.3);
+
+    --app-badge-bg: #2D2B26;
+    --app-badge-border: #3D3A34;
+    --app-header-bg: rgba(24, 23, 21, 0.95);
+    --app-footer-bg: #1C1A18;
+
+    --color-slate-950: #181715;
+    --color-slate-900: #22201D;
+    --color-slate-800: #36332E;
+    --color-slate-700: #48443E;
+    --color-slate-600: #5C564C;
+    --color-slate-500: #7A7469;
+    --color-slate-400: #A39E93;
+    --color-slate-300: #C7C2B6;
+    --color-slate-200: #DDD8CC;
+    --color-slate-100: #EDE8DF;
+  }
+
+  html.light, body.light, .light {
+    --app-bg: #FAF9F5;
+    --app-surface: #FFFFFF;
+    --app-surface-subtle: #F4F1EA;
+    --app-surface-hover: #F0EDE5;
+    --app-border: #E5DFD5;
+    --app-border-subtle: #ECE7DE;
+    --app-border-hover: #D5CDC0;
+    
+    --app-text-primary: #1E1E1C;
+    --app-text-secondary: #6A655C;
+    --app-text-muted: #948E84;
+    
+    --app-accent: #CC785C;
+    --app-accent-hover: #B85F44;
+    --app-accent-subtle: rgba(204, 120, 92, 0.12);
+    --app-accent-text: #B85F44;
+    --app-accent-border: rgba(204, 120, 92, 0.35);
+    
+    --app-sage: #2F753A;
+    --app-sage-subtle: rgba(47, 117, 58, 0.12);
+    --app-sage-border: rgba(47, 117, 58, 0.3);
+    
+    --app-ochre: #A87120;
+    --app-ochre-subtle: rgba(168, 113, 32, 0.12);
+    --app-ochre-border: rgba(168, 113, 32, 0.3);
+    
+    --app-rose: #C24337;
+    --app-rose-subtle: rgba(194, 67, 55, 0.12);
+    --app-rose-border: rgba(194, 67, 55, 0.3);
+
+    --app-badge-bg: #F0EAE1;
+    --app-badge-border: #E2DBD0;
+    --app-header-bg: rgba(250, 249, 245, 0.95);
+    --app-footer-bg: #F4F1EA;
+
+    --color-slate-950: #F4F1EA;
+    --color-slate-900: #FFFFFF;
+    --color-slate-800: #E5DFD5;
+    --color-slate-700: #D5CDC0;
+    --color-slate-600: #8E887E;
+    --color-slate-500: #6A655C;
+    --color-slate-400: #6A655C;
+    --color-slate-300: #3E3B36;
+    --color-slate-200: #2C2925;
+    --color-slate-100: #1E1E1C;
+  }
+
+  * {
+    border-color: var(--app-border);
+  }
+
+  body {
+    background-color: var(--app-bg);
+    color: var(--app-text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Light mode text contrast enhancements */
+html.light .text-white:not(
+  button, 
+  [class*="bg-emerald"], 
+  [class*="bg-amber"], 
+  [class*="bg-[#CC785C]"], 
+  [class*="bg-[#0f172a]"],
+  [class*="bg-slate-900"],
+  [class*="bg-gradient"], 
+  [class*="from-"],
+  .badge-filled,
+  .invoice-sheet *,
+  .bill-paper *
+) {
+  color: #1E1E1C !important;
+}
+
+/* Document / Printable Sheet - Guaranteed 100% crisp high-contrast dark ink on white paper */
+.invoice-sheet,
+.bill-paper,
+.receipt-paper {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  --color-slate-950: #020617 !important;
+  --color-slate-900: #0f172a !important;
+  --color-slate-800: #1e293b !important;
+  --color-slate-700: #334155 !important;
+  --color-slate-600: #475569 !important;
+  --color-slate-500: #64748b !important;
+  --color-slate-400: #94a3b8 !important;
+  --color-slate-300: #cbd5e1 !important;
+  --color-slate-200: #e2e8f0 !important;
+  --color-slate-100: #f1f5f9 !important;
+  --color-slate-50:  #f8fafc !important;
+}
+
+.invoice-sheet *,
+.bill-paper *,
+.receipt-paper * {
+  --color-slate-950: #020617 !important;
+  --color-slate-900: #0f172a !important;
+  --color-slate-800: #1e293b !important;
+  --color-slate-700: #334155 !important;
+  --color-slate-600: #475569 !important;
+  --color-slate-500: #64748b !important;
+  --color-slate-400: #94a3b8 !important;
+  --color-slate-300: #cbd5e1 !important;
+  --color-slate-200: #e2e8f0 !important;
+  --color-slate-100: #f1f5f9 !important;
+  --color-slate-50:  #f8fafc !important;
+}
+
+/* Theme Helper Utilities */
+.theme-bg {
+  background-color: var(--app-bg);
+}
+
+.theme-surface {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+.theme-surface-subtle {
+  background-color: var(--app-surface-subtle);
+  border-color: var(--app-border-subtle);
+}
+
+.theme-card {
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  transition: all 0.15s ease;
+}
+
+.theme-card:hover {
+  background-color: var(--app-surface-hover);
+  border-color: var(--app-border-hover);
+}
+
+.theme-text-primary {
+  color: var(--app-text-primary);
+}
+
+.theme-text-secondary {
+  color: var(--app-text-secondary);
+}
+
+.theme-text-muted {
+  color: var(--app-text-muted);
+}
+
+.theme-border {
+  border-color: var(--app-border);
+}
+
+.theme-border-subtle {
+  border-color: var(--app-border-subtle);
+}
+
+/* Claude Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--app-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--app-border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--app-border-hover);
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
