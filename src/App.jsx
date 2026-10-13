@@ -162,7 +162,7 @@ function AppContent() {
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="hidden xl:inline">Finance &amp; Receipts</span>
+                <span className="hidden xl:inline">Finance &amp; Accounts</span>
                 <span className="xl:hidden">Finance</span>
                 <span className={`hidden 2xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                   activeTab === 'finance' ? 'bg-black/20 text-white' : 'bg-[var(--app-badge-bg)] text-[var(--app-text-secondary)]'
@@ -313,7 +313,7 @@ function AppContent() {
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Daily Collections</span>
+                <span>Payment Breakdown</span>
               </button>
 
               <button
@@ -325,13 +325,13 @@ function AppContent() {
                 }`}
               >
                 <BarChart3 className="w-3.5 h-3.5" />
-                <span>Monthly Summary</span>
+                <span>Office Expenses</span>
               </button>
             </div>
 
             <div className="text-[11px] text-[var(--app-text-muted)] hidden md:flex items-center gap-1.5 font-medium shrink-0">
               <span className="w-2 h-2 rounded-full bg-[var(--app-sage)]"></span>
-              <span>Daily collection per date &amp; monthly tracking active</span>
+              <span>Receipts, expenses & customer balances</span>
             </div>
           </div>
         </div>

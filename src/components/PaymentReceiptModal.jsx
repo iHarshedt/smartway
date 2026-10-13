@@ -26,7 +26,7 @@ function numberToWordsINR(num) {
   return str.trim();
 }
 
-export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClose }) {
+export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClose, autoDownload = false }) {
   const receipt = propReceipt || stage;
   if (!receipt) return null;
 
@@ -49,25 +49,62 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
     }
   };
 
-  const amountInWords = numberToWordsINR(receipt.amount || 0);
+  React.useEffect(() => {
+    if (autoDownload) {
+      const timer = setTimeout(() => {
+        handleSavePdf();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [autoDownload]);
+
+  // Calculate other charges total
+  const otherChargesTotal = (receipt.officeItems || []).reduce((s, it) => s + (Number(it.amount) || 0), 0);
+
+  // Total Amount Received is same as amount paid
+  const amountPaid = Number(receipt.cumulativePaid !== undefined ? receipt.cumulativePaid : receipt.amount) || 0;
+
+  // Add other charges to bill amount
+  const baseBillAmount = Number(receipt.totalProjectCost || 0);
+  const effectiveBillAmount = baseBillAmount + otherChargesTotal;
+
+  // Balance remaining = Bill Amount (with other charges) - Amount Paid
+  const effectiveBalance = effectiveBillAmount > 0
+    ? (effectiveBillAmount - amountPaid)
+    : Number(receipt.balanceRemaining || 0);
+
+  const showBalance = effectiveBalance > 0;
+  const isPaidInFull = effectiveBalance <= 0;
+
+  const amountInWords = numberToWordsINR(amountPaid);
 
   const handleWhatsAppReceipt = () => {
     const cleanPhone = receipt.customerPhone ? receipt.customerPhone.replace(/[^0-9]/g, '') : '';
     const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-    
+
+    const todayFormatted = (() => {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    })();
+
     const message = encodeURIComponent(
       `*SOLAR TECH - OFFICIAL PAYMENT RECEIPT*\n` +
       `----------------------------------------\n` +
       `🧾 *Receipt No:* ${receipt.receiptNo}\n` +
-      `📅 *Date:* ${receipt.paymentDate}\n` +
+      `📅 *Date:* ${todayFormatted}\n` +
       `👤 *Customer:* ${receipt.customerName}\n` +
       (receipt.consumerNo ? `⚡ *KSEB Consumer #:* ${receipt.consumerNo}\n` : '') +
-      `☀️ *System Capacity:* ${receipt.capacityKW || 3} kW On-Grid\n` +
+      `☀️ *System Capacity:* ${receipt.capacityKW ? `${receipt.capacityKW} kW` : '3 kW'}\n` +
       `----------------------------------------\n` +
-      `💰 *Amount Received:* ₹${Number(receipt.amount).toLocaleString()} /-\n` +
-      `📝 *Payment Mode:* ${receipt.paymentMode}${receipt.referenceNo ? ` (Ref: ${receipt.referenceNo})` : ''}\n` +
+      (effectiveBillAmount > 0 ? `📑 *Bill Amount:* ₹${effectiveBillAmount.toLocaleString()} /-\n` : '') +
+      `💰 *Total Amount Received:* ₹${amountPaid.toLocaleString()} /-\n` +
+      `📝 *Payment Mode:* ${receipt.paymentMode || 'UPI'}${receipt.referenceNo && receipt.referenceNo !== 'Not recorded' && !receipt.referenceNo.startsWith('N/A') ? ` (Ref: ${receipt.referenceNo})` : ''}\n` +
       `🔖 *Purpose:* ${receipt.remarks || 'Solar Plant Installation Milestone'}\n` +
-      (receipt.balanceRemaining !== undefined ? `⚖️ *Remaining Balance:* ₹${Number(receipt.balanceRemaining).toLocaleString()} /-\n` : '') +
+      (receipt.officeItems && receipt.officeItems.length > 0 ? `🏢 *Other Charges:* ` + receipt.officeItems.map(it => `${it.label}: ₹${it.amount.toLocaleString()}`).join(', ') + `\n` : '') +
+      (showBalance ? `⚖️ *Remaining Balance:* ₹${effectiveBalance.toLocaleString()} /-\n` : '') +
       `----------------------------------------\n` +
       `Thank you for choosing clean solar energy with Solar Tech!\n` +
       `Helpline: +91 9946236101`
@@ -112,11 +149,11 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
             <button
               onClick={handleSavePdf}
               disabled={isSavingPdf}
-              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-              title="Save Receipt directly as PDF"
+              className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              title="Download Receipt directly as PDF"
             >
               <Download className={`w-4 h-4 ${isSavingPdf ? 'animate-bounce' : ''}`} />
-              <span>{isSavingPdf ? 'Saving...' : 'Save'}</span>
+              <span>{isSavingPdf ? 'Downloading PDF...' : 'Download PDF'}</span>
             </button>
 
             <button
@@ -158,7 +195,7 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
                   Receipt #: <span className="font-mono font-black text-slate-900 text-sm">{receipt.receiptNo || 'REC-2026-001'}</span>
                 </div>
                 <div className="text-xs text-slate-500 mt-0.5">
-                  Date: <span className="font-semibold text-slate-800">{receipt.paymentDate || new Date().toLocaleDateString('en-IN')}</span>
+                  Date: <span className="font-semibold text-slate-800">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                 </div>
               </div>
             </div>
@@ -195,18 +232,14 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
                 Plant &amp; Grid Connection
               </span>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="space-y-2 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-500 block font-medium">Consumer Number:</span>
                   <span className="font-mono font-bold text-slate-900">{receipt.consumerNo || 'Pending'}</span>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 block font-medium">Section:</span>
-                  <span className="font-bold text-slate-900">{receipt.section || 'Kerala Division'}</span>
-                </div>
-                <div className="col-span-2 pt-1.5 border-t border-slate-200 flex items-center justify-between">
+                <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between">
                   <span className="text-[10px] text-slate-500 font-medium">System Capacity:</span>
-                  <span className="font-black text-amber-600 text-xs">{receipt.capacityKW || 3} kW On-Grid Solar</span>
+                  <span className="font-black text-amber-600 text-xs">{receipt.capacityKW ? `${receipt.capacityKW} kW` : '3 kW'}</span>
                 </div>
               </div>
             </div>
@@ -219,18 +252,11 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
             {/* Payment Details Body */}
             <div className="p-5 space-y-4">
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
                   <span className="text-[10px] text-slate-500 font-semibold block uppercase">Payment Mode</span>
                   <span className="font-black text-slate-900 uppercase mt-0.5 inline-block">
-                    {receipt.paymentMode || 'CASH'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
-                  <span className="text-[10px] text-slate-500 font-semibold block uppercase">Reference / Txn #</span>
-                  <span className="font-mono font-bold text-slate-800 text-[11px] mt-0.5 inline-block truncate max-w-full">
-                    {receipt.referenceNo || 'N/A (Cash)'}
+                    {receipt.paymentMode || 'UPI'}
                   </span>
                 </div>
 
@@ -250,14 +276,14 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
                     Total Amount Received
                   </span>
                   <div className="text-2xl sm:text-3xl font-black text-emerald-700 tracking-tight mt-0.5">
-                    ₹{Number(receipt.amount || 0).toLocaleString()}
+                    ₹{Number(amountPaid).toLocaleString()}
                   </div>
                 </div>
 
                 <div className="sm:text-right">
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">Status</span>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-black shadow-xs mt-1">
-                    ✓ PAID IN FULL
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-white text-xs font-black shadow-xs mt-1 ${isPaidInFull ? 'bg-emerald-600' : 'bg-amber-600'}`}>
+                    {isPaidInFull ? '✓ PAID IN FULL' : 'PARTIAL PAYMENT'}
                   </span>
                 </div>
               </div>
@@ -275,19 +301,47 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
           </div>
 
           {/* Project Cost & Ledger Summary (If available) */}
-          {receipt.totalProjectCost && (
-            <div className="grid grid-cols-3 gap-3 text-center bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs">
-              <div>
-                <span className="text-[10px] font-semibold text-slate-500 block uppercase">Quoted Cost</span>
-                <span className="font-black text-slate-900 text-sm">₹{Number(receipt.totalProjectCost).toLocaleString()}</span>
+          {effectiveBillAmount > 0 && (() => {
+            const cols = showBalance ? 'grid-cols-3' : 'grid-cols-2';
+
+            return (
+              <div className={`grid ${cols} gap-3 text-center bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs`}>
+                <div>
+                  <span className="text-[10px] font-semibold text-slate-500 block uppercase">Bill Amount</span>
+                  <span className="font-black text-slate-900 text-sm">₹{Number(effectiveBillAmount).toLocaleString()}</span>
+                </div>
+                <div className="border-l border-slate-200">
+                  <span className="text-[10px] font-semibold text-slate-500 block uppercase">Amount Paid</span>
+                  <span className="font-black text-emerald-700 text-sm">₹{Number(amountPaid).toLocaleString()}</span>
+                </div>
+                {showBalance && (
+                  <div className="border-l border-slate-200">
+                    <span className="text-[10px] font-semibold text-slate-500 block uppercase">Balance Remaining</span>
+                    <span className="font-black text-rose-600 text-sm">₹{Number(effectiveBalance).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
-              <div className="border-x border-slate-200">
-                <span className="text-[10px] font-semibold text-slate-500 block uppercase">Paid to Date</span>
-                <span className="font-black text-emerald-700 text-sm">₹{Number(receipt.cumulativePaid || receipt.amount).toLocaleString()}</span>
+            );
+          })()}
+
+          {/* Individual items given from office (displayed below summary) */}
+          {receipt.officeItems && receipt.officeItems.length > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Other Charges
+                </span>
+                <span className="text-[11px] font-black text-slate-900">
+                  Total: ₹{receipt.officeItems.reduce((s, it) => s + it.amount, 0).toLocaleString()}
+                </span>
               </div>
-              <div>
-                <span className="text-[10px] font-semibold text-slate-500 block uppercase">Balance Remaining</span>
-                <span className="font-black text-rose-600 text-sm">₹{Number(receipt.balanceRemaining || 0).toLocaleString()}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {receipt.officeItems.map((item, idx) => (
+                  <div key={idx} className="bg-white border border-slate-200 rounded-xl p-2.5 flex items-center justify-between shadow-2xs">
+                    <span className="text-slate-600 font-medium text-[11px]">{item.label}</span>
+                    <span className="font-bold text-slate-900 text-xs">₹{item.amount.toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
