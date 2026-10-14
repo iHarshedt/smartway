@@ -299,7 +299,7 @@ function AppContent() {
       {activeTab === 'amc' && (
         <nav aria-label="AMC pages" className="bg-[var(--app-surface-subtle)] border-b border-[var(--app-border)] px-4 py-2">
           <div className="max-w-7xl mx-auto flex gap-2">
-            {[['records', 'AMC Records'], ['due', 'AMC Due']].map(([key, label]) => (
+            {[['records', 'AMC Records'], ['due', 'AMC Due'], ['sections', 'Section Due Counts']].map(([key, label]) => (
               <button key={key} onClick={() => setAmcSubTab(key)} aria-pressed={amcSubTab === key} className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${amcSubTab === key ? 'bg-[var(--app-accent)] text-white' : 'text-[var(--app-text-secondary)] hover:bg-[var(--app-surface)]'}`}>{label}</button>
             ))}
           </div>
@@ -359,7 +359,7 @@ function AppContent() {
 
       {/* MAIN VIEW CONTENT CONTAINER */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
-        {activeTab === 'amc' && (amcSubTab === 'due' ? <AMCDuePage /> : <AMCPage />)}
+        {activeTab === 'amc' && (amcSubTab === 'records' ? <AMCPage /> : <AMCDuePage view={amcSubTab} onOpenDue={() => setAmcSubTab('due')} />)}
         {activeTab === 'sales' && (
           <SalesPage 
             onOpenCalculator={handleOpenCalculatorWithDeal} 

@@ -33,13 +33,16 @@ export function scheduleAmc(record, asOf) {
   const base = { ...record, rule, count, dueDate: null, overdueDays: null };
   if (!rule) return { ...base, state: 'review', reason: 'Unknown phase' };
   if (rule.max !== null && count !== null && count >= rule.max) return { ...base, state: 'completed', reason: 'Maximum AMC count reached' };
-  const last = parseAmcDate(record.lastAmc);
+  const firstVisit = record.noVisitHistory === true && count === 0;
+  const last = parseAmcDate(firstVisit ? record.installationDate : record.lastAmc);
   const reference = /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? new Date(`${asOf}T00:00:00Z`) : null;
   if (!reference || Number.isNaN(reference.getTime())) return { ...base, state: 'review', reason: 'Select a valid date' };
+  if (firstVisit && !record.installationDate) return { ...base, state: 'due', reason: 'First AMC pending — date unknown (installation date missing)' };
+  if (firstVisit && !last) return { ...base, state: 'review', reason: 'Invalid installation date for first AMC' };
   if (!last) return { ...base, state: 'review', reason: record.lastAmc ? 'Invalid Last AMC date' : 'Last AMC not recorded' };
-  if (last > reference) return { ...base, state: 'review', reason: 'Last AMC is after the selected date' };
+  if (!firstVisit && last > reference) return { ...base, state: 'review', reason: 'Last AMC is after the selected date' };
   const dueDate = addCalendarMonths(last, rule.months).toISOString().slice(0, 10);
   if (rule.max !== null && count === null) return { ...base, dueDate, state: 'review', reason: 'AMC count missing or invalid; limit cannot be checked' };
   const overdueDays = Math.round((reference - new Date(`${dueDate}T00:00:00Z`)) / 86400000);
-  return { ...base, dueDate, overdueDays, state: overdueDays >= 0 ? 'due' : 'upcoming', reason: overdueDays === 0 ? 'Due today' : overdueDays > 0 ? `${overdueDays} days overdue` : `Due in ${-overdueDays} days` };
+  return { ...base, dueDate, overdueDays, state: overdueDays >= 0 ? 'due' : 'upcoming', reason: (firstVisit ? 'First AMC: ' : '') + (overdueDays === 0 ? 'Due today' : overdueDays > 0 ? `${overdueDays} days overdue` : `Due in ${-overdueDays} days`) };
 }

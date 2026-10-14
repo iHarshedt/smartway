@@ -53,7 +53,7 @@ export default function AMCPage() {
               <option value="all">All AMC records</option><option value="recorded">Last AMC recorded</option><option value="missing">Last AMC missing</option>
             </select>
           </div>
-          <p className="text-xs text-[var(--app-text-muted)]">Visit sheets: {data.sources.map(source => source.sheet).join(', ')}. Imported {new Date(data.importedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST. Last AMC is the latest visit; AMC count uses distinct visit dates per consumer within each phase. Missing consumer numbers remain separate for review.</p>
+          <p className="text-xs text-[var(--app-text-muted)]">Full customer lists matched to {data.sources.map(source => source.sheet).join(', ')}. Imported {new Date(data.importedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST. Includes never-visited customers. Last AMC and counts use visit history, with full-sheet history as fallback. Missing consumer numbers remain separate for review.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">

@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { AMC_SOURCES as sources, aggregateVisits } from '../src/data/amcImport.js';
+import { AMC_SOURCES as sources, aggregateVisits, mergeCustomerRoster } from '../src/data/amcImport.js';
 
 const sheetId = '11JYdYFjr-XPUZoQijSzpaCH8N226AVmESBizPFaaX2Y';
 
@@ -28,8 +28,13 @@ const results = await Promise.all(sources.map(async source => {
   if (source.name === 'Phase 1' ? rows[0]?.some(cell => cell.trim()) : !/DATE/i.test(header)) throw new Error(`${source.name}: Unexpected visit-sheet header`);
   const records = aggregateVisits(rows, source);
   if (!records.length) throw new Error(`${source.name}: No visit records found`);
-  console.log(`${source.name}: ${records.length} records`);
-  return records;
+  const masterResponse = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${source.masterGid}`);
+  if (!masterResponse.ok) throw new Error(`${source.name} customer roster: HTTP ${masterResponse.status}`);
+  const masterRows = parseCsv(await masterResponse.text());
+  if (!/CONSUMER/i.test(masterRows[0]?.join(',') || '')) throw new Error(`${source.name}: Unexpected customer roster header`);
+  const merged = mergeCustomerRoster(masterRows, records, source);
+  console.log(`${source.name}: ${merged.length} customers, ${merged.filter(record => record.noVisitHistory).length} without visits`);
+  return merged;
 }));
 
 await writeFile(new URL('../src/data/amcData.json', import.meta.url), JSON.stringify({

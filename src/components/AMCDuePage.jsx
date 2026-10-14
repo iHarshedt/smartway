@@ -10,7 +10,8 @@ const formatDate = value => value ? value.split('-').reverse().join('/') : '—'
 const activeRules = Object.fromEntries(data.sources.map(source => [source.name, AMC_RULES[source.name]]));
 const phases = Object.keys(activeRules);
 
-export default function AMCDuePage() {
+export default function AMCDuePage({ view = 'due', onOpenDue }) {
+  const isSummary = view === 'sections';
   const [phase, setPhase] = useState('All');
   const [section, setSection] = useState('All');
   const [query, setQuery] = useState('');
@@ -27,7 +28,8 @@ export default function AMCDuePage() {
   }, { counts: Object.fromEntries(phases.map(name => [name, 0])), total: 0, review: 0 });
   const showSection = (name, project) => {
     setSection(name); setPhase(project); setStatus('due'); setQuery(''); setPage(1);
-    document.getElementById('amc-customer-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onOpenDue?.();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const update = (setter, value) => { setter(value); setPage(1); };
   const sections = useMemo(() => [...new Set(data.records.filter(r => phase === 'All' || r.source === phase).map(r => sectionKey(r.section)))].sort(), [phase]);
@@ -40,7 +42,8 @@ export default function AMCDuePage() {
   ), [matching, status]);
   const pages = Math.max(1, Math.ceil(rows.length / 50));
 
-  return <section className="space-y-5" aria-label="AMC due search">
+  return <section className="space-y-5" aria-label={isSummary ? 'AMC section due counts' : 'AMC due search'}>
+    {!isSummary && <>
     <div><h2 className="text-2xl font-bold flex items-center gap-2"><CalendarClock className="text-[var(--app-accent)]" />AMC Due</h2><p className="mt-1 text-sm text-[var(--app-text-secondary)]">Find maintenance visits due by section and phase.</p></div>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{Object.entries(activeRules).map(([name, rule]) => <div key={name} className="p-4 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)]"><p className="font-semibold text-sm">{name}</p><p className="text-sm mt-1 text-[var(--app-text-secondary)]">Every {rule.months} {rule.months === 1 ? 'month' : 'months'}</p><p className="text-xs mt-1 text-[var(--app-text-muted)]">{rule.max ? `Maximum ${rule.max} AMCs` : 'No maximum specified'}</p></div>)}</div>
     <div className="p-4 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] space-y-4">
@@ -51,13 +54,19 @@ export default function AMCDuePage() {
         <label className="text-xs space-y-1 block"><span>Search customer or section</span><input aria-label="Search due customers" className={control} placeholder="Name, consumer no., phone, section" value={query} onChange={e => update(setQuery, e.target.value)} /></label>
       </div>
       <div className="flex flex-wrap gap-2" aria-label="AMC due status">{Object.entries({ ...states, all: 'All records' }).map(([key, label]) => <button key={key} aria-pressed={status === key} onClick={() => update(setStatus, key)} className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer ${status === key ? 'bg-[var(--app-accent)] text-white' : 'bg-[var(--app-surface-subtle)] text-[var(--app-text-secondary)]'}`}>{label} ({key === 'all' ? matching.length : matching.filter(r => r.state === key).length})</button>)}</div>
-      <p className="text-xs text-[var(--app-text-muted)]">Next due = Last AMC + service interval in calendar months. Dates use DD/MM/YYYY; month-end dates are capped at the last day of the due month. Missing dates or counts needed to check a limit require review.</p>
-      <p className="text-xs text-[var(--app-text-muted)]">Based on the sheet snapshot imported {new Date(data.importedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}. Counts use distinct visit dates per consumer within each phase from the AMC visit sheets. Customers without any visit history are not included.</p>
+      <p className="text-xs text-[var(--app-text-muted)]">Next due = Last AMC + service interval in calendar months. First AMC uses installation date + interval. Never-visited customers without an installation date are included as first AMC pending, with no overdue duration assigned. Dates use DD/MM/YYYY.</p>
+      <p className="text-xs text-[var(--app-text-muted)]">Full customer lists and AMC history imported {new Date(data.importedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}. Counts use distinct visit dates, with customer-sheet history as fallback when no matching visit log exists.</p>
+    </div>
+    </>}
+    {isSummary && <>
+    <div className="space-y-3">
+      <h2 className="text-2xl font-bold">Due counts by section and project</h2>
+      <label className="text-xs space-y-1 block sm:max-w-xs"><span>Due as of</span><input aria-label="Section counts due as of" type="date" className={control} value={asOf} onChange={event => update(setAsOf, event.target.value)} /></label>
+      <p className="text-xs text-[var(--app-text-muted)]">Full customer lists and AMC history imported {new Date(data.importedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}. Includes customers with no previous AMC visit.</p>
     </div>
     <section aria-label="Section-wise AMC due counts" className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] overflow-hidden">
       <div className="p-4 space-y-2">
-        <h3 className="font-bold text-lg">Due counts by section and project</h3>
-        <p className="text-xs text-[var(--app-text-secondary)]">Due or overdue as of {formatDate(asOf)} across all projects. Each count represents a customer record needing a visit, not missed visits. Customer filters above do not change this summary. Click a count to see its customers below.</p>
+        <p className="text-xs text-[var(--app-text-secondary)]">Due or overdue as of {formatDate(asOf)}, including first AMC pending where the installation date is unknown. Each count represents a customer record needing a visit, not missed visits. Click a count to open matching customers in AMC Due.</p>
         <p className="text-xs text-[var(--app-text-muted)]">Needs review is excluded from due totals. Section spelling follows the source sheets; different spellings remain separate.</p>
         <input aria-label="Search sections in due summary" placeholder="Search sections" className={`${control} sm:max-w-sm`} value={summarySearch} onChange={event => setSummarySearch(event.target.value)} />
       </div>
@@ -74,7 +83,8 @@ export default function AMCDuePage() {
         {!summary.length && <p className="p-6 text-center text-sm text-[var(--app-text-secondary)]">No sections match your search.</p>}
       </div>
     </section>
-    <div id="amc-customer-results" className="scroll-mt-24 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] overflow-hidden">
+    </>}
+    {!isSummary && <div id="amc-customer-results" className="scroll-mt-24 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] overflow-hidden">
       <h3 className="p-4 font-bold">Customer details · {phase} · {section} · {states[status] || 'All records'}</h3>
       <div className="overflow-x-auto"><table className="w-full text-sm text-left whitespace-nowrap"><thead className="bg-[var(--app-surface-subtle)] text-xs text-[var(--app-text-secondary)]"><tr>{['Customer / Consumer no.', 'Phase', 'Section', 'Phone', 'Last AMC', 'Next due', 'Completed / Max', 'Status', 'Source'].map(label => <th key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
         <tbody>{rows.slice((page - 1) * 50, page * 50).map(r => <tr key={r.id} className="border-t border-[var(--app-border)] hover:bg-[var(--app-surface-hover)]">
@@ -84,7 +94,7 @@ export default function AMCDuePage() {
         </tr>)}</tbody></table></div>
       {!rows.length && <p className="text-center p-10 text-[var(--app-text-secondary)]">No records match these filters. Choose another status, section, phase or date.</p>}
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-[var(--app-border)] text-xs"><span>{rows.length.toLocaleString('en-IN')} records · Page {page} of {pages}</span><div className="flex gap-2"><button className={`${control} disabled:opacity-40`} disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</button><button className={`${control} disabled:opacity-40`} disabled={page === pages} onClick={() => setPage(p => p + 1)}>Next</button></div></div>
-    </div>
+    </div>}
   </section>;
 }
 

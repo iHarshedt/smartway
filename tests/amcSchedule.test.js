@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { scheduleAmc, parseAmcDate } from '../src/data/amcSchedule.js';
 
 const record = { source: 'Phase 1', lastAmc: '14/09/2026', amcCount: '2' };
+test('never-visited customers use installation dates or remain pending without invented dates', () => {
+  const first = { source: 'MNRE', noVisitHistory: true, amcCount: '0', lastAmc: '' };
+  assert.equal(scheduleAmc(first, '2026-10-14').state, 'due');
+  assert.equal(scheduleAmc(first, '2026-10-14').dueDate, null);
+  assert.equal(scheduleAmc({ ...first, installationDate: '14/04/2026' }, '2026-10-14').state, 'due');
+  assert.equal(scheduleAmc({ ...first, installationDate: '15/04/2026' }, '2026-10-14').state, 'upcoming');
+  assert.equal(scheduleAmc({ ...first, installationDate: 'bad date' }, '2026-10-14').state, 'review');
+});
 test('monthly due date is inclusive and uses day/month/year', () => {
   assert.equal(scheduleAmc(record, '2026-10-13').state, 'upcoming');
   assert.equal(scheduleAmc(record, '2026-10-14').reason, 'Due today');

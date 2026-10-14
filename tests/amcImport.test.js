@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregateVisits, AMC_SOURCES } from '../src/data/amcImport.js';
+import { aggregateVisits, AMC_SOURCES, mergeCustomerRoster } from '../src/data/amcImport.js';
+
+test('full roster adds unvisited customers, matches history and retains orphan visits', () => {
+  const source = AMC_SOURCES[0];
+  const visits = aggregateVisits([[], ['Visited', '123', '5', 'SECTION', 'PHASE1', '01/09/2026'], ['Other', '789', '5', 'SECTION', '', '01/09/2026']], source);
+  const merged = mergeCustomerRoster([[], ['Visited', '123', '5', '', '999', 'SECTION'], ['New', '456', '5', '', '888', 'SECTION'], ['Fallback', '111', '5', '', '', 'SECTION', '2', '01/08/2026']], visits, source);
+  assert.equal(merged.length, 4);
+  assert.equal(merged.find(r => r.consumerNo === '123').amcCount, '1');
+  assert.equal(merged.find(r => r.consumerNo === '123').phone, '999');
+  assert.equal(merged.find(r => r.consumerNo === '456').noVisitHistory, true);
+  assert.equal(merged.find(r => r.consumerNo === '456').amcCount, '0');
+  assert.equal(merged.find(r => r.consumerNo === '111').noVisitHistory, false);
+  assert.equal(merged.find(r => r.consumerNo === '111').amcCount, '2');
+});
 
 test('visit histories use latest date and distinct dates, not row order', () => {
   const result = aggregateVisits([[],
