@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, ArrowUp, ArrowDown } from 'lucide-react';
 import data from '../data/amcData.json';
 import { AMC_RULES, indiaToday, scheduleAmc } from '../data/amcSchedule';
 import { normalizeSection as sectionKey, summarizeDueSections } from '../data/amcSummary';
@@ -19,8 +19,12 @@ export default function AMCDuePage({ view = 'due', onOpenDue }) {
   const [status, setStatus] = useState('due');
   const [page, setPage] = useState(1);
   const [summarySearch, setSummarySearch] = useState('');
+  const [totalDueSort, setTotalDueSort] = useState('descending');
   const scheduled = useMemo(() => data.records.map(record => scheduleAmc(record, asOf)), [asOf]);
-  const summary = useMemo(() => summarizeDueSections(scheduled, phases).filter(row => row.section.toLowerCase().includes(summarySearch.trim().toLowerCase())), [scheduled, summarySearch]);
+  const summary = useMemo(() => summarizeDueSections(scheduled, phases)
+    .filter(row => row.section.toLowerCase().includes(summarySearch.trim().toLowerCase()))
+    .sort((a, b) => (totalDueSort === 'ascending' ? a.total - b.total : b.total - a.total) || a.section.localeCompare(b.section)),
+  [scheduled, summarySearch, totalDueSort]);
   const summaryTotals = summary.reduce((total, row) => {
     phases.forEach(name => { total.counts[name] += row.counts[name]; });
     total.total += row.total; total.review += row.review;
@@ -72,7 +76,11 @@ export default function AMCDuePage({ view = 'due', onOpenDue }) {
       </div>
       <div className="overflow-auto max-h-[480px]">
         <table className="w-full text-sm whitespace-nowrap" aria-label="Due counts by section and project">
-          <thead className="sticky top-0 bg-[var(--app-surface-subtle)] text-xs text-[var(--app-text-secondary)]"><tr><th scope="col" className="px-4 py-3 text-left">Section</th>{phases.map(name => <th scope="col" key={name} className="px-4 py-3 text-right">{name}</th>)}<th scope="col" className="px-4 py-3 text-right">Total due</th><th scope="col" className="px-4 py-3 text-right">Needs review</th></tr></thead>
+          <thead className="sticky top-0 bg-[var(--app-surface-subtle)] text-xs text-[var(--app-text-secondary)]"><tr><th scope="col" className="px-4 py-3 text-left">Section</th>{phases.map(name => <th scope="col" key={name} className="px-4 py-3 text-right">{name}</th>)}<th scope="col" aria-sort={totalDueSort} className="px-4 py-3 text-right">
+            <button type="button" onClick={() => setTotalDueSort(order => order === 'descending' ? 'ascending' : 'descending')} aria-label={`Sort Total due ${totalDueSort === 'descending' ? 'lowest first' : 'highest first'}`} title={totalDueSort === 'descending' ? 'Highest first — click for lowest first' : 'Lowest first — click for highest first'} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--app-border)] px-2 py-1.5 cursor-pointer hover:bg-[var(--app-surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--app-accent)]">
+              Total due {totalDueSort === 'descending' ? <ArrowDown size={14} aria-hidden="true" /> : <ArrowUp size={14} aria-hidden="true" />}
+            </button>
+          </th><th scope="col" className="px-4 py-3 text-right">Needs review</th></tr></thead>
           <tbody>{summary.map(row => <tr key={row.section} className="border-t border-[var(--app-border)] hover:bg-[var(--app-surface-hover)]">
             <th scope="row" className="px-4 py-3 text-left font-medium">{row.section}</th>
             {phases.map(name => <td key={name} className="px-4 py-3 text-right tabular-nums">{row.counts[name] ? <button aria-label={`Show ${name} due customers in ${row.section}`} className="underline text-[var(--app-accent-text)] cursor-pointer px-2 py-1" onClick={() => showSection(row.section, name)}>{row.counts[name]}</button> : <span className="text-[var(--app-text-muted)]">0</span>}</td>)}
