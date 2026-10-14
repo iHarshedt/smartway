@@ -7,6 +7,8 @@ import KSEBBillCalculator from './components/KSEBBillCalculator';
 import SalesPage from './components/SalesPage';
 import KSEBBillView from './components/KSEBBillView';
 import FinanceLedgerPage from './components/FinanceLedgerPage';
+import AMCPage from './components/AMCPage';
+import AMCDuePage from './components/AMCDuePage';
 import { 
   TrendingUp, 
   Zap, 
@@ -32,6 +34,7 @@ function AppContent() {
   const { user, userProfile, role, isAdmin, isPending, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('sales'); // 'sales' | 'finance' | 'calculator' | 'lookup' | 'team'
   const [financeSubTab, setFinanceSubTab] = useState('customers'); // 'customers' | 'daily' | 'monthly'
+  const [amcSubTab, setAmcSubTab] = useState('records');
   const [selectedCustomerForCalc, setSelectedCustomerForCalc] = useState(null);
   const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState(null);
   
@@ -171,6 +174,14 @@ function AppContent() {
                 </span>
               </button>
 
+              <button
+                onClick={() => setActiveTab('amc')}
+                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${activeTab === 'amc' ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm' : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'}`}
+              >
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span>AMC</span>
+              </button>
+
               {/* KSEB Calculator Tab */}
               <button
                 onClick={() => setActiveTab('calculator')}
@@ -285,6 +296,15 @@ function AppContent() {
       </header>
 
       {/* SUB-MENU FOR FINANCE */}
+      {activeTab === 'amc' && (
+        <nav aria-label="AMC pages" className="bg-[var(--app-surface-subtle)] border-b border-[var(--app-border)] px-4 py-2">
+          <div className="max-w-7xl mx-auto flex gap-2">
+            {[['records', 'AMC Records'], ['due', 'AMC Due']].map(([key, label]) => (
+              <button key={key} onClick={() => setAmcSubTab(key)} aria-pressed={amcSubTab === key} className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${amcSubTab === key ? 'bg-[var(--app-accent)] text-white' : 'text-[var(--app-text-secondary)] hover:bg-[var(--app-surface)]'}`}>{label}</button>
+            ))}
+          </div>
+        </nav>
+      )}
       {activeTab === 'finance' && (
         <div className="bg-[var(--app-surface-subtle)] border-b border-[var(--app-border)] px-4 py-2 sticky top-16 sm:top-18 z-30 transition-colors">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 overflow-x-auto scrollbar-none">
@@ -339,6 +359,7 @@ function AppContent() {
 
       {/* MAIN VIEW CONTENT CONTAINER */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
+        {activeTab === 'amc' && (amcSubTab === 'due' ? <AMCDuePage /> : <AMCPage />)}
         {activeTab === 'sales' && (
           <SalesPage 
             onOpenCalculator={handleOpenCalculatorWithDeal} 
