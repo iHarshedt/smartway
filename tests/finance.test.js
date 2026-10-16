@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitPayments, registrationFee, classifyExpense, parseFinance, parseCSV } from '../src/data/financeData.js';
+import { splitPayments, registrationFee, classifyExpense, parseFinance, parseCSV, summarize } from '../src/data/financeData.js';
 test('signed payments preserve order and do not execute formulas', () => {
   assert.deepEqual(splitPayments('=50000+100000-1000-200+400'), [50000,100000,-1000,-200,400]);
   assert.equal(splitPayments('=SUM(F2:F5)'), null);
@@ -16,6 +16,24 @@ test('expense rules use sign independently and confirmed registration formula', 
   assert.equal(classifyExpense(-5000,null),'review');
 });
 const header='CUSTOMER NAME,BILL AMOUNT,PAID AMOUNT,BALANCE AMOUNT,PAYMENT BREAKDOWN,CAPACITY';
+test('sheet without breakdown column retains balances without inventing transactions', () => {
+  const rows = parseFinance('CUSTOMER NAME,BILL AMOUNT,PAID AMOUNT,BALANCE AMOUNT,CAPACITY\nAlice,100,80,20,3');
+  const [account] = rows;
+  assert.equal(account.net, 80);
+  assert.equal(account.balance, 20);
+  assert.equal(account.status, 'outstanding');
+  assert.equal(account.received, null);
+  assert.equal(account.expenses, null);
+  assert.deepEqual(account.entries, []);
+  assert.ok(account.issues.includes('Payment breakdown not recorded'));
+  const totals = summarize(rows);
+  assert.equal(totals.net, 80);
+  assert.equal(totals.outstanding, 20);
+  assert.equal(totals.unresolved, 1);
+});
+test('missing required balance column still rejects the sheet', () => {
+  assert.throws(() => parseFinance('CUSTOMER NAME,BILL AMOUNT,PAID AMOUNT\nAlice,100,80'), /missing BALANCE AMOUNT/);
+});
 test('reconcile gross receipts less expenses to net paid', () => {
   const [r]=parseFinance(header+'\nAlice,196500,95800,100700,=100000-1000-200-3000,2.95');
   assert.equal(r.received,100000); assert.equal(r.expenses,4200); assert.equal(r.net,95800);

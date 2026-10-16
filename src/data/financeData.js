@@ -43,7 +43,8 @@ export function parseFinance(text) {
   const start = rows.findIndex(row => row.some(x => normal(x) === 'CUSTOMER NAME'));
   if (start < 0) throw new Error('Finance data is empty or the import is still loading.');
   const headers = rows[start].map(normal);
-  for (const h of ['CUSTOMER NAME', 'BILL AMOUNT', 'PAID AMOUNT', 'BALANCE AMOUNT', 'PAYMENT BREAKDOWN']) if (!headers.includes(h)) throw new Error(`Finance sheet is missing ${h}.`);
+  // Breakdowns are optional: sheet balances remain usable without transaction detail.
+  for (const h of ['CUSTOMER NAME', 'BILL AMOUNT', 'PAID AMOUNT', 'BALANCE AMOUNT']) if (!headers.includes(h)) throw new Error(`Finance sheet is missing ${h}.`);
   const records = rows.slice(start + 1).flatMap((row, index) => {
     const get = h => String(row[headers.indexOf(h)] ?? '').trim();
     const name = get('CUSTOMER NAME'); if (!name || /^(grand\s+)?total\b/i.test(name)) return [];
