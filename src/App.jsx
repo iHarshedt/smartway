@@ -7,10 +7,12 @@ import KSEBBillCalculator from './components/KSEBBillCalculator';
 import SalesPage from './components/SalesPage';
 import KSEBBillView from './components/KSEBBillView';
 import FinanceLedgerPage from './components/FinanceLedgerPage';
+import OperationPage from './components/OperationPage';
 import AMCPage from './components/AMCPage';
 import AMCDuePage from './components/AMCDuePage';
 import { 
   TrendingUp, 
+  Truck,
   Zap, 
   Search, 
   Sun, 
@@ -153,6 +155,14 @@ function AppContent() {
                 }`}>
                   Master
                 </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('operation')}
+                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${activeTab === 'operation' ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm' : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'}`}
+              >
+                <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span>Operation</span>
               </button>
 
               {/* Finance & Receipts Tab */}
@@ -359,6 +369,7 @@ function AppContent() {
 
       {/* MAIN VIEW CONTENT CONTAINER */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
+        {activeTab === 'operation' && <OperationPage onOpenPayment={handleOpenPaymentWithDeal} />}
         {activeTab === 'amc' && (amcSubTab === 'records' ? <AMCPage /> : <AMCDuePage view={amcSubTab} onOpenDue={() => setAmcSubTab('due')} />)}
         {activeTab === 'sales' && (
           <SalesPage 

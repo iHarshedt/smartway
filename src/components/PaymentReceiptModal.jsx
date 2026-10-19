@@ -99,7 +99,8 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
       (receipt.consumerNo ? `⚡ *KSEB Consumer #:* ${receipt.consumerNo}\n` : '') +
       `☀️ *System Capacity:* ${receipt.capacityKW ? `${receipt.capacityKW} kW` : '3 kW'}\n` +
       `----------------------------------------\n` +
-      (effectiveBillAmount > 0 ? `📑 *Bill Amount:* ₹${effectiveBillAmount.toLocaleString()} /-\n` : '') +
+      (effectiveBillAmount > 0 ? `📑 *Bill Amount:* ₹${baseBillAmount.toLocaleString()} /-\n` +
+        `🏢 *Other Charges (Total):* ₹${otherChargesTotal.toLocaleString()} /-\n` : '') +
       `💰 *Total Amount Received:* ₹${amountPaid.toLocaleString()} /-\n` +
       `📝 *Payment Mode:* ${receipt.paymentMode || 'UPI'}${receipt.referenceNo && receipt.referenceNo !== 'Not recorded' && !receipt.referenceNo.startsWith('N/A') ? ` (Ref: ${receipt.referenceNo})` : ''}\n` +
       `🔖 *Purpose:* ${receipt.remarks || 'Solar Plant Installation Milestone'}\n` +
@@ -302,13 +303,17 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
 
           {/* Project Cost & Ledger Summary (If available) */}
           {effectiveBillAmount > 0 && (() => {
-            const cols = showBalance ? 'grid-cols-3' : 'grid-cols-2';
+            const cols = showBalance ? 'grid-cols-2 sm:grid-cols-4 print:grid-cols-4' : 'grid-cols-3';
 
             return (
               <div className={`grid ${cols} gap-3 text-center bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs`}>
                 <div>
                   <span className="text-[10px] font-semibold text-slate-500 block uppercase">Bill Amount</span>
-                  <span className="font-black text-slate-900 text-sm">₹{Number(effectiveBillAmount).toLocaleString()}</span>
+                  <span className="font-black text-slate-900 text-sm">₹{baseBillAmount.toLocaleString()}</span>
+                </div>
+                <div className="border-l border-slate-200">
+                  <span className="text-[10px] font-semibold text-slate-500 block uppercase">Other Charges (Total)</span>
+                  <span className="font-black text-slate-900 text-sm">₹{otherChargesTotal.toLocaleString()}</span>
                 </div>
                 <div className="border-l border-slate-200">
                   <span className="text-[10px] font-semibold text-slate-500 block uppercase">Amount Paid</span>
@@ -332,7 +337,7 @@ export default function PaymentReceiptModal({ receipt: propReceipt, stage, onClo
                   Other Charges
                 </span>
                 <span className="text-[11px] font-black text-slate-900">
-                  Total: ₹{receipt.officeItems.reduce((s, it) => s + it.amount, 0).toLocaleString()}
+                  Total: ₹{otherChargesTotal.toLocaleString()}
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">

@@ -476,14 +476,12 @@ export default function FinanceReceipt({ account, entry: initialEntry, onClose, 
             const effectiveBal = effectiveBill - effectivePaid;
 
             return (
-              <div className="pt-1.5 border-t border-[var(--app-border-subtle)] flex items-center justify-between text-[11px]">
+              <div className="pt-1.5 border-t border-[var(--app-border-subtle)] flex flex-wrap gap-2 items-center justify-between text-[11px]">
                 <span>
-                  Bill Amount: <b>₹{effectiveBill.toLocaleString('en-IN')}</b>
-                  {totalOtherChargesAmount > 0 && (
-                    <span className="text-[10px] text-[var(--app-text-secondary)] font-normal ml-1">
-                      (₹{account.bill?.toLocaleString('en-IN')} + ₹{totalOtherChargesAmount.toLocaleString('en-IN')})
-                    </span>
-                  )}
+                  Bill Amount: <b>₹{(account.bill || 0).toLocaleString('en-IN')}</b>
+                </span>
+                <span>
+                  Other Charges (Total): <b>₹{totalOtherChargesAmount.toLocaleString('en-IN')}</b>
                 </span>
                 {effectiveBal > 0 ? (
                   <span>Balance: <b className="text-amber-400">₹{effectiveBal.toLocaleString('en-IN')}</b></span>
