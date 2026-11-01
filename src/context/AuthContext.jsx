@@ -193,6 +193,7 @@ export function AuthProvider({ children }) {
   const isAdmin = role === 'admin';
   const isFinance = role === 'finance' || isAdmin;
   const isSales = role === 'sales' || isAdmin;
+  const isVendor = role === 'vendor';
   const isPending = role === 'pending' || userProfile?.status === 'pending_approval';
 
   const value = {
@@ -202,6 +203,7 @@ export function AuthProvider({ children }) {
     isAdmin,
     isFinance,
     isSales,
+    isVendor,
     isPending,
     loading,
     authError,

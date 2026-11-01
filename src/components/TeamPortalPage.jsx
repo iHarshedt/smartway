@@ -26,7 +26,8 @@ import {
   X,
   UserCheck,
   Shield,
-  Briefcase
+  Briefcase,
+  FileText
 } from 'lucide-react';
 
 const ROLE_DEFINITIONS = [
@@ -50,6 +51,13 @@ const ROLE_DEFINITIONS = [
     description: 'Access to Finance ledger, payment stages, client bills & receipts',
     color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
     icon: Receipt
+  },
+  {
+    id: 'vendor',
+    name: 'Vendor',
+    description: 'External or Equipment Vendor. Access restricted strictly to Quotation tab only',
+    color: 'bg-teal-500/15 text-teal-400 border-teal-500/30',
+    icon: FileText
   },
   {
     id: 'viewer',
@@ -148,8 +156,9 @@ export default function TeamPortalPage() {
     const admins = members.filter(m => m.role === 'admin').length;
     const sales = members.filter(m => m.role === 'sales').length;
     const finance = members.filter(m => m.role === 'finance').length;
+    const vendors = members.filter(m => m.role === 'vendor').length;
     const pending = members.filter(m => m.role === 'pending' || m.status === 'pending_approval').length;
-    return { total, admins, sales, finance, pending };
+    return { total, admins, sales, finance, vendors, pending };
   }, [members]);
 
   // Filtered members list
@@ -236,7 +245,7 @@ export default function TeamPortalPage() {
       )}
 
       {/* METRIC KPI TILES */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         
         <div className="bg-[var(--app-surface,#1e293b)] border border-[var(--app-border,#334155)] p-4 rounded-2xl shadow-xs">
           <span className="text-[10px] font-semibold text-[var(--app-text-muted,#94a3b8)] uppercase block">
@@ -278,6 +287,16 @@ export default function TeamPortalPage() {
           <span className="text-[10px] text-emerald-400/80">Ledgers &amp; Receipts</span>
         </div>
 
+        <div className="bg-[var(--app-surface,#1e293b)] border border-[var(--app-border,#334155)] p-4 rounded-2xl shadow-xs">
+          <span className="text-[10px] font-semibold text-teal-400 uppercase block">
+            Vendors
+          </span>
+          <div className="text-2xl font-black text-teal-300 mt-1">
+            {stats.vendors}
+          </div>
+          <span className="text-[10px] text-teal-400/80">Quotation Only</span>
+        </div>
+
         <div className={`p-4 rounded-2xl border shadow-xs ${
           stats.pending > 0 
             ? 'bg-rose-500/10 border-rose-500/30' 
@@ -315,7 +334,7 @@ export default function TeamPortalPage() {
 
         {/* Role Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
-          {['ALL', 'PENDING', 'ADMIN', 'SALES', 'FINANCE', 'VIEWER'].map(filterOption => (
+          {['ALL', 'PENDING', 'ADMIN', 'SALES', 'FINANCE', 'VENDOR', 'VIEWER'].map(filterOption => (
             <button
               key={filterOption}
               onClick={() => setRoleFilter(filterOption)}
@@ -426,6 +445,7 @@ export default function TeamPortalPage() {
                           <option value="admin" className="bg-slate-900 text-purple-300">👑 Administrator (Full Access)</option>
                           <option value="sales" className="bg-slate-900 text-amber-300">☀️ Sales Engineer</option>
                           <option value="finance" className="bg-slate-900 text-emerald-300">💰 Finance Officer</option>
+                          <option value="vendor" className="bg-slate-900 text-teal-300">📦 Vendor (Quotation Only)</option>
                           <option value="viewer" className="bg-slate-900 text-sky-300">👁️ Viewer / Read-Only</option>
                           <option value="pending" className="bg-slate-900 text-rose-300">⏳ Pending Approval</option>
                         </select>

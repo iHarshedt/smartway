@@ -10,6 +10,7 @@ import FinanceLedgerPage from './components/FinanceLedgerPage';
 import OperationPage from './components/OperationPage';
 import AMCPage from './components/AMCPage';
 import AMCDuePage from './components/AMCDuePage';
+import QuotationGenerator from './components/QuotationGenerator';
 import { 
   TrendingUp, 
   Truck,
@@ -29,16 +30,25 @@ import {
   Calendar,
   BarChart3,
   LogOut,
-  Shield
+  Shield,
+  FileText
 } from 'lucide-react';
 
 function AppContent() {
-  const { user, userProfile, role, isAdmin, isPending, loading, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('sales'); // 'sales' | 'finance' | 'calculator' | 'lookup' | 'team'
+  const { user, userProfile, role, isAdmin, isPending, loading, logout, isVendor } = useAuth();
+  const [activeTab, setActiveTab] = useState(() => (role === 'vendor' ? 'quotation' : 'sales')); // 'sales' | 'finance' | 'quotation' | 'calculator' | 'lookup' | 'team'
   const [financeSubTab, setFinanceSubTab] = useState('customers'); // 'customers' | 'daily' | 'monthly'
   const [amcSubTab, setAmcSubTab] = useState('records');
   const [selectedCustomerForCalc, setSelectedCustomerForCalc] = useState(null);
   const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState(null);
+  const [selectedCustomerForQuote, setSelectedCustomerForQuote] = useState(null);
+
+  // If role is vendor, strictly restrict to quotation tab
+  useEffect(() => {
+    if (isVendor || role === 'vendor') {
+      setActiveTab('quotation');
+    }
+  }, [isVendor, role]);
   
   // Theme state: 'dark' (Claude Dark) | 'light' (Claude Warm White)
   const [theme, setTheme] = useState(() => {
@@ -71,6 +81,12 @@ function AppContent() {
   const handleOpenPaymentWithDeal = (dealOrCustomer) => {
     setSelectedCustomerForPayment(dealOrCustomer);
     setActiveTab('finance');
+  };
+
+  // Navigate directly into Quotation Generator with deal pre-selected
+  const handleOpenQuoteWithDeal = (dealOrCustomer) => {
+    setSelectedCustomerForQuote(dealOrCustomer);
+    setActiveTab('quotation');
   };
 
   // Loading State
@@ -115,7 +131,7 @@ function AppContent() {
           <div className="flex items-center justify-between h-16 sm:h-18 gap-2 sm:gap-4">
             
             {/* Logo & Brand Identity */}
-            <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0" onClick={() => setActiveTab('sales')}>
+            <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0" onClick={() => setActiveTab(isVendor ? 'quotation' : 'sales')}>
               <img 
                 src="/logo-512.png" 
                 alt="Smart Way" 
@@ -127,7 +143,7 @@ function AppContent() {
                     SMART WAY
                   </h1>
                   <span className="text-[9px] sm:text-[10px] font-bold uppercase px-1.5 sm:px-2 py-0.5 rounded-full bg-[var(--app-accent-subtle)] text-[var(--app-accent-text)] border border-[var(--app-accent-border)] whitespace-nowrap">
-                    CRM &amp; EPC
+                    {isVendor ? 'Vendor' : 'CRM & EPC'}
                   </span>
                 </div>
                 <p className="text-[10px] text-[var(--app-text-secondary)] font-medium hidden 2xl:block truncate max-w-[260px]">
@@ -138,112 +154,147 @@ function AppContent() {
 
             {/* Navigation Tabs */}
             <nav className="flex items-center bg-[var(--app-surface-subtle)] border border-[var(--app-border)] p-1 rounded-2xl shadow-inner overflow-x-auto scrollbar-none shrink">
-              
-              {/* Sales Page Tab */}
-              <button
-                onClick={() => setActiveTab('sales')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 relative whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'sales'
-                    ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
-                    : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-                }`}
-              >
-                <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span>Sales</span>
-                <span className={`hidden xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeTab === 'sales' ? 'bg-black/20 text-white' : 'bg-[var(--app-badge-bg)] text-[var(--app-text-secondary)]'
-                }`}>
-                  Master
-                </span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('operation')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${activeTab === 'operation' ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm' : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'}`}
-              >
-                <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span>Operation</span>
-              </button>
-
-              {/* Finance & Receipts Tab */}
-              <button
-                onClick={() => setActiveTab('finance')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'finance'
-                    ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
-                    : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-                }`}
-              >
-                <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="hidden xl:inline">Finance &amp; Accounts</span>
-                <span className="xl:hidden">Finance</span>
-                <span className={`hidden 2xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeTab === 'finance' ? 'bg-black/20 text-white' : 'bg-[var(--app-badge-bg)] text-[var(--app-text-secondary)]'
-                }`}>
-                  Ledger
-                </span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('amc')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${activeTab === 'amc' ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm' : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'}`}
-              >
-                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span>AMC</span>
-              </button>
-
-              {/* KSEB Calculator Tab */}
-              <button
-                onClick={() => setActiveTab('calculator')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'calculator'
-                    ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
-                    : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="hidden lg:inline">KSEB Calculator</span>
-                <span className="lg:hidden">Calculator</span>
-                {selectedCustomerForCalc && (
-                  <span className="w-2 h-2 rounded-full bg-[var(--app-sage)] animate-ping"></span>
-                )}
-              </button>
-
-              {/* Consumer Lookup Tab */}
-              <button
-                onClick={() => setActiveTab('lookup')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
-                  activeTab === 'lookup'
-                    ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
-                    : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-                }`}
-              >
-                <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="hidden xl:inline">Consumer Lookup</span>
-                <span className="xl:hidden">Lookup</span>
-              </button>
-
-              {/* Team Portal Tab (Accessible to Admins) */}
-              {isAdmin && (
+              {isVendor ? (
+                /* Vendor Mode: ONLY Quotation Tab */
                 <button
-                  onClick={() => setActiveTab('team')}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
-                    activeTab === 'team'
-                      ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
-                      : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-                  }`}
+                  onClick={() => setActiveTab('quotation')}
+                  className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold bg-[var(--app-accent)] text-white shadow-sm whitespace-nowrap cursor-default"
                 >
-                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  <span className="hidden sm:inline">Team</span>
-                  <span className="hidden xl:inline"> Portal</span>
-                  <span className={`hidden 2xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeTab === 'team' ? 'bg-black/20 text-white' : 'bg-purple-500/20 text-purple-400'
-                  }`}>
-                    Roles
+                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span>Quotation</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-black/20 text-white">
+                    Vendor Portal
                   </span>
                 </button>
-              )}
+              ) : (
+                <>
+                  {/* Sales Page Tab */}
+                  <button
+                    onClick={() => setActiveTab('sales')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 relative whitespace-nowrap cursor-pointer shrink-0 ${
+                      activeTab === 'sales'
+                        ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
+                        : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
+                    }`}
+                  >
+                    <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>Sales</span>
+                    <span className={`hidden xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'sales' ? 'bg-black/20 text-white' : 'bg-[var(--app-badge-bg)] text-[var(--app-text-secondary)]'
+                    }`}>
+                      Master
+                    </span>
+                  </button>
 
+                  <button
+                    onClick={() => setActiveTab('operation')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${activeTab === 'operation' ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm' : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'}`}
+                  >
+                    <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>Operation</span>
+                  </button>
+
+                  {/* Finance & Receipts Tab */}
+                  <button
+                    onClick={() => setActiveTab('finance')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
+                      activeTab === 'finance'
+                        ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
+                        : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
+                    }`}
+                  >
+                    <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="hidden xl:inline">Finance &amp; Accounts</span>
+                    <span className="xl:hidden">Finance</span>
+                    <span className={`hidden 2xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'finance' ? 'bg-black/20 text-white' : 'bg-[var(--app-badge-bg)] text-[var(--app-text-secondary)]'
+                    }`}>
+                      Ledger
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('amc')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${activeTab === 'amc' ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm' : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'}`}
+                  >
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>AMC</span>
+                  </button>
+
+                  {/* Quotation Generator Tab */}
+                  <button
+                    onClick={() => setActiveTab('quotation')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
+                      activeTab === 'quotation'
+                        ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
+                        : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>Quotation</span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'quotation' ? 'bg-black/20 text-white' : 'bg-emerald-500/20 text-emerald-400'
+                    }`}>
+                      MSP
+                    </span>
+                    {selectedCustomerForQuote && (
+                      <span className="w-2 h-2 rounded-full bg-[var(--app-sage)] animate-ping"></span>
+                    )}
+                  </button>
+
+                  {/* KSEB Calculator Tab */}
+                  <button
+                    onClick={() => setActiveTab('calculator')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
+                      activeTab === 'calculator'
+                        ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
+                        : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="hidden lg:inline">KSEB Calculator</span>
+                    <span className="lg:hidden">Calculator</span>
+                    {selectedCustomerForCalc && (
+                      <span className="w-2 h-2 rounded-full bg-[var(--app-sage)] animate-ping"></span>
+                    )}
+                  </button>
+
+                  {/* Consumer Lookup Tab */}
+                  <button
+                    onClick={() => setActiveTab('lookup')}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
+                      activeTab === 'lookup'
+                        ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
+                        : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
+                    }`}
+                  >
+                    <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="hidden xl:inline">Consumer Lookup</span>
+                    <span className="xl:hidden">Lookup</span>
+                  </button>
+
+                  {/* Team Portal Tab (Accessible to Admins) */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => setActiveTab('team')}
+                      className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition duration-150 whitespace-nowrap cursor-pointer shrink-0 ${
+                        activeTab === 'team'
+                          ? 'bg-[var(--app-accent)] text-white font-bold shadow-sm'
+                          : 'text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="hidden sm:inline">Team</span>
+                      <span className="hidden xl:inline"> Portal</span>
+                      <span className={`hidden 2xl:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        activeTab === 'team' ? 'bg-black/20 text-white' : 'bg-purple-500/20 text-purple-400'
+                      }`}>
+                        Roles
+                      </span>
+                    </button>
+                  )}
+                </>
+              )}
             </nav>
 
             {/* User Profile & Quick Actions */}
@@ -282,7 +333,11 @@ function AppContent() {
                     {user.displayName || 'Member'}
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded ${
+                      role === 'vendor'
+                        ? 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
+                        : 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                    }`}>
                       {role || 'Team'}
                     </span>
                   </div>
@@ -305,8 +360,8 @@ function AppContent() {
         </div>
       </header>
 
-      {/* SUB-MENU FOR FINANCE */}
-      {activeTab === 'amc' && (
+      {/* SUB-MENU FOR FINANCE & AMC */}
+      {!isVendor && activeTab === 'amc' && (
         <nav aria-label="AMC pages" className="bg-[var(--app-surface-subtle)] border-b border-[var(--app-border)] px-4 py-2">
           <div className="max-w-7xl mx-auto flex gap-2">
             {[['records', 'AMC Records'], ['due', 'AMC Due'], ['sections', 'Section Due Counts']].map(([key, label]) => (
@@ -315,7 +370,7 @@ function AppContent() {
           </div>
         </nav>
       )}
-      {activeTab === 'finance' && (
+      {!isVendor && activeTab === 'finance' && (
         <div className="bg-[var(--app-surface-subtle)] border-b border-[var(--app-border)] px-4 py-2 sticky top-16 sm:top-18 z-30 transition-colors">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 overflow-x-auto scrollbar-none">
             <div className="flex items-center gap-1.5">
@@ -369,50 +424,80 @@ function AppContent() {
 
       {/* MAIN VIEW CONTENT CONTAINER */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
-        {activeTab === 'operation' && <OperationPage onOpenPayment={handleOpenPaymentWithDeal} />}
-        {activeTab === 'amc' && (amcSubTab === 'records' ? <AMCPage /> : <AMCDuePage view={amcSubTab} onOpenDue={() => setAmcSubTab('due')} />)}
-        {activeTab === 'sales' && (
-          <SalesPage 
-            onOpenCalculator={handleOpenCalculatorWithDeal} 
-            onOpenPayment={handleOpenPaymentWithDeal}
-          />
-        )}
-
-        {activeTab === 'finance' && (
-          <FinanceLedgerPage 
-            initialCustomerForPayment={selectedCustomerForPayment}
-            activeSubSession={financeSubTab}
-            onSubSessionChange={setFinanceSubTab}
-          />
-        )}
-
-        {activeTab === 'calculator' && (
+        {isVendor ? (
           <div className="space-y-4">
-            {selectedCustomerForCalc && (
-              <div className="flex items-center justify-between bg-[var(--app-surface)] border border-[var(--app-border)] px-4 py-2.5 rounded-2xl text-xs">
-                <div className="flex items-center gap-2 text-[var(--app-text-primary)]">
-                  <span className="text-[var(--app-accent)] font-bold">Active Simulation:</span>
-                  <span className="font-semibold">{selectedCustomerForCalc.customerName || selectedCustomerForCalc.name}</span>
-                  <span className="text-[var(--app-text-secondary)]">({selectedCustomerForCalc.capacityKW || selectedCustomerForCalc.solarKW} kW)</span>
-                </div>
-                <button
-                  onClick={() => setSelectedCustomerForCalc(null)}
-                  className="text-xs text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] underline cursor-pointer"
-                >
-                  Clear &amp; Reset
-                </button>
+            <QuotationGenerator />
+          </div>
+        ) : (
+          <>
+            {activeTab === 'operation' && <OperationPage onOpenPayment={handleOpenPaymentWithDeal} />}
+            {activeTab === 'amc' && (amcSubTab === 'records' ? <AMCPage /> : <AMCDuePage view={amcSubTab} onOpenDue={() => setAmcSubTab('due')} />)}
+            {activeTab === 'sales' && (
+              <SalesPage 
+                onOpenCalculator={handleOpenCalculatorWithDeal} 
+                onOpenPayment={handleOpenPaymentWithDeal}
+                onOpenQuote={handleOpenQuoteWithDeal}
+              />
+            )}
+
+            {activeTab === 'quotation' && (
+              <div className="space-y-4">
+                {selectedCustomerForQuote && (
+                  <div className="flex items-center justify-between bg-[var(--app-surface)] border border-[var(--app-border)] px-4 py-2.5 rounded-2xl text-xs">
+                    <div className="flex items-center gap-2 text-[var(--app-text-primary)]">
+                      <span className="text-[var(--app-accent)] font-bold">Active Lead:</span>
+                      <span className="font-semibold">{selectedCustomerForQuote.customerName || selectedCustomerForQuote.name}</span>
+                      <span className="text-[var(--app-text-secondary)]">({selectedCustomerForQuote.capacityKW || selectedCustomerForQuote.solarKW} kWp)</span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCustomerForQuote(null)}
+                      className="text-xs text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] underline cursor-pointer"
+                    >
+                      Clear &amp; New Quote
+                    </button>
+                  </div>
+                )}
+                <QuotationGenerator initialCustomer={selectedCustomerForQuote} />
               </div>
             )}
-            <KSEBBillCalculator initialCustomer={selectedCustomerForCalc} />
-          </div>
-        )}
 
-        {activeTab === 'lookup' && (
-          <KSEBBillView onSelectCustomer={handleOpenCalculatorWithDeal} />
-        )}
+            {activeTab === 'finance' && (
+              <FinanceLedgerPage 
+                initialCustomerForPayment={selectedCustomerForPayment}
+                activeSubSession={financeSubTab}
+                onSubSessionChange={setFinanceSubTab}
+              />
+            )}
 
-        {activeTab === 'team' && isAdmin && (
-          <TeamPortalPage />
+            {activeTab === 'calculator' && (
+              <div className="space-y-4">
+                {selectedCustomerForCalc && (
+                  <div className="flex items-center justify-between bg-[var(--app-surface)] border border-[var(--app-border)] px-4 py-2.5 rounded-2xl text-xs">
+                    <div className="flex items-center gap-2 text-[var(--app-text-primary)]">
+                      <span className="text-[var(--app-accent)] font-bold">Active Simulation:</span>
+                      <span className="font-semibold">{selectedCustomerForCalc.customerName || selectedCustomerForCalc.name}</span>
+                      <span className="text-[var(--app-text-secondary)]">({selectedCustomerForCalc.capacityKW || selectedCustomerForCalc.solarKW} kW)</span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCustomerForCalc(null)}
+                      className="text-xs text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] underline cursor-pointer"
+                    >
+                      Clear &amp; Reset
+                    </button>
+                  </div>
+                )}
+                <KSEBBillCalculator initialCustomer={selectedCustomerForCalc} />
+              </div>
+            )}
+
+            {activeTab === 'lookup' && (
+              <KSEBBillView onSelectCustomer={handleOpenCalculatorWithDeal} />
+            )}
+
+            {activeTab === 'team' && isAdmin && (
+              <TeamPortalPage />
+            )}
+          </>
         )}
       </main>
 

@@ -19,11 +19,12 @@ import {
   Calendar,
   ShieldCheck,
   FileCheck,
-  Award
+  Award,
+  FileText
 } from 'lucide-react';
 import { CUSTOMER_RECORDS, GOOGLE_SHEET_URL, GOOGLE_SHEET_CSV_URL } from '../data/customerData';
 
-export default function SalesPage({ onOpenCalculator, onOpenPayment }) {
+export default function SalesPage({ onOpenCalculator, onOpenPayment, onOpenQuote }) {
   // Pure, authentic dataset directly from Google Sheet (read-only as requested)
   const [deals, setDeals] = useState(CUSTOMER_RECORDS);
 
@@ -575,6 +576,17 @@ export default function SalesPage({ onOpenCalculator, onOpenPayment }) {
                         title="Open in KSEB Calculator"
                       >
                         <Zap className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    {/* Generate Quotation */}
+                    {onOpenQuote && (
+                      <button
+                        onClick={() => onOpenQuote(deal)}
+                        className="p-2 rounded-xl bg-[var(--app-accent-subtle)] hover:bg-[var(--app-accent-hover)]/20 text-[var(--app-accent)] border border-[var(--app-accent-border)] transition cursor-pointer"
+                        title="Generate Official Quotation"
+                      >
+                        <FileText className="w-4 h-4" />
                       </button>
                     )}
 
