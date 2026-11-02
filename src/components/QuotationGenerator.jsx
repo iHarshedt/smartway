@@ -1,5 +1,8 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { CUSTOMER_RECORDS } from '../data/customerData';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 import './QuotationTab.css';
 import {
@@ -845,8 +848,30 @@ const getPriceListRows = () => {
   return rows;
 };
 
+// ─── DEFAULT COMPANY PROFILES ──────────────────────────────────
+const DEFAULT_COMPANY_PROFILES = [
+  {
+    id: 'default_smartway_nilambur',
+    name: 'Smart Way - Nilambur Main',
+    companyName: 'SMART WAY SOLAR SOLUTIONS',
+    companyPlace: 'Nilambur, Malappuram, Kerala',
+    salesEngineer: 'HARSHED ILLIKKAL',
+    salesEngineerPhone: '9946236101',
+    salesEngineer2: '',
+    salesEngineerPhone2: ''
+  }
+];
+
 // ─── MAIN COMPONENT ─────────────────────────────────────────────
 export default function QuotationGenerator({ leads = [], customers = [], initialCustomer = null }) {
+  const { user } = useAuth();
+  const [companyProfiles, setCompanyProfiles] = useState(DEFAULT_COMPANY_PROFILES);
+  const [selectedProfileId, setSelectedProfileId] = useState(DEFAULT_COMPANY_PROFILES[0].id);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [profileNotice, setProfileNotice] = useState('');
+  const [firestoreSyncStatus, setFirestoreSyncStatus] = useState('connecting'); // 'synced' | 'saving' | 'guest' | 'error'
+
   const [subTab, setSubTab] = useState('generate_new');
   const [selectedIdx, setSelectedIdx] = useState(3);
   const [paymentType, setPaymentType] = useState('cash');
@@ -856,10 +881,215 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
     place: initialCustomer?.address || initialCustomer?.place || initialCustomer?.section || '',
     salesEngineer: initialCustomer?.salesEngineer || 'Harshed illikkal',
     salesEngineerPhone: initialCustomer?.salesEngineerPhone || '9946236101',
+    salesEngineer2: initialCustomer?.salesEngineer2 || '',
+    salesEngineerPhone2: initialCustomer?.salesEngineerPhone2 || '',
     ksebBiMonthlyBill: initialCustomer?.ksebBiMonthlyBill || '',
     ksebSection: initialCustomer?.section || initialCustomer?.ksebSection || '',
-    companyName: 'SMART WAY SOLAR SOLUTIONS'
+    companyName: 'SMART WAY SOLAR SOLUTIONS',
+    companyPlace: 'Nilambur, Malappuram, Kerala'
   });
+
+  // Helper to apply profile to customer state
+  const applyProfile = useCallback((profile) => {
+    if (!profile) return;
+    setCustomer(prev => ({
+      ...prev,
+      companyName: profile.companyName || prev.companyName || 'SMART WAY SOLAR SOLUTIONS',
+      companyPlace: profile.companyPlace || prev.companyPlace || 'Nilambur, Malappuram, Kerala',
+      salesEngineer: profile.salesEngineer || prev.salesEngineer || 'HARSHED ILLIKKAL',
+      salesEngineerPhone: profile.salesEngineerPhone || prev.salesEngineerPhone || '9946236101',
+      salesEngineer2: profile.salesEngineer2 ?? prev.salesEngineer2 ?? '',
+      salesEngineerPhone2: profile.salesEngineerPhone2 ?? prev.salesEngineerPhone2 ?? ''
+    }));
+  }, []);
+
+  // Real-time Firestore sync: load and listen to company profiles directly from Firestore
+  useEffect(() => {
+    const uid = user?.uid || null;
+
+    if (!db || !uid) {
+      setFirestoreSyncStatus(uid ? 'error' : 'guest');
+      return;
+    }
+
+    setFirestoreSyncStatus('connecting');
+    const profileDocRef = doc(db, 'company_profiles', uid);
+
+    const unsubscribe = onSnapshot(profileDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data?.profiles) && data.profiles.length > 0) {
+          setCompanyProfiles(data.profiles);
+          setFirestoreSyncStatus('synced');
+
+          setSelectedProfileId(prevId => {
+            const exists = data.profiles.some(p => p.id === prevId);
+            const targetId = exists ? prevId : (data.lastActiveId || data.profiles[0].id);
+            const activeProfile = data.profiles.find(p => p.id === targetId);
+            if (activeProfile) applyProfile(activeProfile);
+            return targetId;
+          });
+          return;
+        }
+      }
+
+      // If no company_profiles doc yet, check users collection or initialize in Firestore
+      getDoc(doc(db, 'users', uid)).then(userSnap => {
+        if (userSnap.exists() && Array.isArray(userSnap.data()?.companyProfiles) && userSnap.data().companyProfiles.length > 0) {
+          const uProfiles = userSnap.data().companyProfiles;
+          setCompanyProfiles(uProfiles);
+          setSelectedProfileId(uProfiles[0].id);
+          applyProfile(uProfiles[0]);
+          setFirestoreSyncStatus('synced');
+        } else {
+          // Initialize in Firestore
+          setDoc(profileDocRef, {
+            userId: uid,
+            userEmail: user.email || '',
+            profiles: DEFAULT_COMPANY_PROFILES,
+            lastActiveId: DEFAULT_COMPANY_PROFILES[0].id,
+            updatedAt: new Date().toISOString()
+          }, { merge: true })
+            .then(() => setFirestoreSyncStatus('synced'))
+            .catch(() => setFirestoreSyncStatus('synced'));
+        }
+      }).catch(() => {
+        setFirestoreSyncStatus('synced');
+      });
+    }, (err) => {
+      console.warn('Firestore onSnapshot listener error:', err);
+      setFirestoreSyncStatus('error');
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, applyProfile, user?.email]);
+
+  // Save updated profiles directly to Firestore
+  const persistProfiles = useCallback(async (updatedList, activeId) => {
+    setCompanyProfiles(updatedList);
+    const uid = user?.uid || null;
+
+    if (!db || !uid) {
+      setProfileNotice('⚠️ Please sign in to save profiles to Firestore');
+      return;
+    }
+
+    setFirestoreSyncStatus('saving');
+    try {
+      // Direct write to Firestore company_profiles collection
+      await setDoc(doc(db, 'company_profiles', uid), {
+        userId: uid,
+        userEmail: user.email || '',
+        profiles: updatedList,
+        lastActiveId: activeId || null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // Mirror write to users collection for extra durability
+      await setDoc(doc(db, 'users', uid), {
+        companyProfiles: updatedList,
+        activeCompanyProfileId: activeId || null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      setFirestoreSyncStatus('synced');
+    } catch (err) {
+      console.error('Failed to save company profile to Firestore:', err);
+      setFirestoreSyncStatus('error');
+      throw err;
+    }
+  }, [user?.uid, user?.email]);
+
+  // Handle changing dropdown
+  const handleProfileSelect = (profileId) => {
+    setSelectedProfileId(profileId);
+    const target = companyProfiles.find(p => p.id === profileId);
+    if (target) {
+      applyProfile(target);
+      if (db && user?.uid) {
+        setDoc(doc(db, 'company_profiles', user.uid), { lastActiveId: target.id }, { merge: true }).catch(() => {});
+      }
+      setProfileNotice(`Loaded profile: ${target.name}`);
+      setTimeout(() => setProfileNotice(''), 3000);
+    }
+  };
+
+  // Handle saving current form values as a new profile in Firestore
+  const handleSaveNewProfile = async () => {
+    if (!newProfileName.trim()) return;
+    const newProfile = {
+      id: `prof_${Date.now()}`,
+      name: newProfileName.trim(),
+      companyName: customer.companyName || 'SMART WAY SOLAR SOLUTIONS',
+      companyPlace: customer.companyPlace || 'Nilambur, Malappuram, Kerala',
+      salesEngineer: customer.salesEngineer || 'HARSHED ILLIKKAL',
+      salesEngineerPhone: customer.salesEngineerPhone || '9946236101',
+      salesEngineer2: customer.salesEngineer2 || '',
+      salesEngineerPhone2: customer.salesEngineerPhone2 || '',
+      createdAt: new Date().toISOString()
+    };
+
+    const nextList = [...companyProfiles, newProfile];
+    setSelectedProfileId(newProfile.id);
+    try {
+      await persistProfiles(nextList, newProfile.id);
+      setShowSaveModal(false);
+      setNewProfileName('');
+      setProfileNotice(`✓ Saved to Firestore: "${newProfile.name}"`);
+      setTimeout(() => setProfileNotice(''), 3500);
+    } catch (e) {
+      setProfileNotice(`❌ Firestore save failed: ${e.message}`);
+    }
+  };
+
+  // Handle updating the currently selected profile in Firestore
+  const handleUpdateCurrentProfile = async () => {
+    const current = companyProfiles.find(p => p.id === selectedProfileId);
+    if (!current) return;
+
+    const updated = {
+      ...current,
+      companyName: customer.companyName || current.companyName,
+      companyPlace: customer.companyPlace || current.companyPlace,
+      salesEngineer: customer.salesEngineer || current.salesEngineer,
+      salesEngineerPhone: customer.salesEngineerPhone || current.salesEngineerPhone,
+      salesEngineer2: customer.salesEngineer2 || '',
+      salesEngineerPhone2: customer.salesEngineerPhone2 || '',
+      updatedAt: new Date().toISOString()
+    };
+
+    const nextList = companyProfiles.map(p => p.id === current.id ? updated : p);
+    try {
+      await persistProfiles(nextList, updated.id);
+      setProfileNotice(`✓ Updated in Firestore: "${updated.name}"`);
+      setTimeout(() => setProfileNotice(''), 3500);
+    } catch (e) {
+      setProfileNotice(`❌ Firestore update failed: ${e.message}`);
+    }
+  };
+
+  // Handle deleting the selected profile from Firestore
+  const handleDeleteProfile = async () => {
+    const target = companyProfiles.find(p => p.id === selectedProfileId);
+    if (!target) return;
+    if (companyProfiles.length <= 1) {
+      alert('You must keep at least one company profile.');
+      return;
+    }
+    if (!window.confirm(`Delete company profile "${target.name}" from Firestore?`)) return;
+
+    const nextList = companyProfiles.filter(p => p.id !== selectedProfileId);
+    const nextActive = nextList[0];
+    setSelectedProfileId(nextActive.id);
+    applyProfile(nextActive);
+    try {
+      await persistProfiles(nextList, nextActive.id);
+      setProfileNotice(`✓ Deleted from Firestore: "${target.name}"`);
+      setTimeout(() => setProfileNotice(''), 3500);
+    } catch (e) {
+      setProfileNotice(`❌ Firestore delete failed: ${e.message}`);
+    }
+  };
   const [structureCostRaw, setStructureCostRaw] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -881,8 +1111,11 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
         place: (initialCustomer.address || initialCustomer.place || initialCustomer.section || '').toUpperCase(),
         salesEngineer: (initialCustomer.salesEngineer || prev.salesEngineer || 'Harshed illikkal').toUpperCase(),
         salesEngineerPhone: initialCustomer.salesEngineerPhone || prev.salesEngineerPhone || '9946236101',
+        salesEngineer2: (initialCustomer.salesEngineer2 || prev.salesEngineer2 || '').toUpperCase(),
+        salesEngineerPhone2: initialCustomer.salesEngineerPhone2 || prev.salesEngineerPhone2 || '',
         ksebBiMonthlyBill: initialCustomer.ksebBiMonthlyBill || '',
-        ksebSection: (initialCustomer.section || initialCustomer.ksebSection || '').toUpperCase()
+        ksebSection: (initialCustomer.section || initialCustomer.ksebSection || '').toUpperCase(),
+        companyPlace: initialCustomer.companyPlace || prev.companyPlace || 'Nilambur, Malappuram, Kerala'
       }));
 
       const cap = parseFloat(initialCustomer.capacityKW || initialCustomer.solarKW || initialCustomer.capacity);
@@ -948,6 +1181,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
       place: String(res.place || res.address || '').toUpperCase(),
       salesEngineer: res.salesEngineer ? String(res.salesEngineer).toUpperCase() : prev.salesEngineer,
       salesEngineerPhone: res.salesEngineerPhone ? String(res.salesEngineerPhone) : prev.salesEngineerPhone,
+      salesEngineer2: res.salesEngineer2 ? String(res.salesEngineer2).toUpperCase() : (prev.salesEngineer2 || ''),
+      salesEngineerPhone2: res.salesEngineerPhone2 ? String(res.salesEngineerPhone2) : (prev.salesEngineerPhone2 || ''),
       ksebBiMonthlyBill: res.ksebBiMonthlyBill || prev.ksebBiMonthlyBill || '',
       ksebSection: (res.ksebSection || res.section || res.Section || '').toUpperCase()
     }));
@@ -1055,6 +1290,27 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
   const totalProjectCost = totalSystemCost + ksebTotal + structureCost;
   const endCustomerPrice = totalProjectCost - subsidyAmount;
 
+  let rep1Name = customer.salesEngineer || 'Harshed illikkal';
+  let rep1Phone = customer.salesEngineerPhone || '9946236101';
+  let rep2Name = customer.salesEngineer2 || '';
+  let rep2Phone = customer.salesEngineerPhone2 || '';
+
+  if (!rep2Name && (rep1Name.includes(',') || rep1Name.includes('/') || rep1Name.includes('&'))) {
+    const parts = rep1Name.split(/[,/&]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      rep1Name = parts[0];
+      rep2Name = parts[1];
+    }
+  }
+
+  if (!rep2Phone && rep1Phone && (rep1Phone.includes(',') || rep1Phone.includes('/') || rep1Phone.includes('&'))) {
+    const pParts = rep1Phone.split(/[,/&]/).map(s => s.trim()).filter(Boolean);
+    if (pParts.length >= 2) {
+      rep1Phone = pParts[0];
+      rep2Phone = pParts[1];
+    }
+  }
+
   const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const handleClear = () => {
@@ -1064,9 +1320,12 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
       place: '',
       salesEngineer: 'Harshed illikkal',
       salesEngineerPhone: '9946236101',
+      salesEngineer2: '',
+      salesEngineerPhone2: '',
       ksebBiMonthlyBill: '',
       ksebSection: '',
-      companyName: 'SMART WAY SOLAR SOLUTIONS'
+      companyName: 'SMART WAY SOLAR SOLUTIONS',
+      companyPlace: 'Nilambur, Malappuram, Kerala'
     });
     setPaymentType('cash');
     setStructureCostRaw('');
@@ -1360,6 +1619,250 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                 {/* Customer Details & Payment Type */}
                 <div className="q-settings-grid">
                   <h2 className="q-group-heading">02 / Customer details<span>Search above to fill from an existing lead or customer.</span></h2>
+
+                  {/* Company Profile Preset Dropdown Bar */}
+                  <div style={{
+                    gridColumn: '1 / -1',
+                    background: '#f8fafc',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                    marginBottom: 4
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 280 }}>
+                      <label style={{ fontSize: 11, fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🏢</span> Company Profile:
+                      </label>
+                      <select
+                        value={selectedProfileId}
+                        onChange={(e) => handleProfileSelect(e.target.value)}
+                        style={{
+                          flex: 1,
+                          border: '1.5px solid #94a3b8',
+                          borderRadius: 8,
+                          padding: '6px 12px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#ffffff',
+                          outline: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {companyProfiles.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.companyPlace ? `(${p.companyPlace})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        background: firestoreSyncStatus === 'synced' ? '#dcfce7' : firestoreSyncStatus === 'saving' ? '#fef3c7' : '#f1f5f9',
+                        color: firestoreSyncStatus === 'synced' ? '#15803d' : firestoreSyncStatus === 'saving' ? '#b45309' : '#64748b',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        {firestoreSyncStatus === 'synced' && '☁️ Firestore Synced'}
+                        {firestoreSyncStatus === 'saving' && '⏳ Saving to Firestore...'}
+                        {firestoreSyncStatus === 'connecting' && '🔄 Connecting Firestore...'}
+                        {firestoreSyncStatus === 'guest' && '⚠️ Sign in to save to Firestore'}
+                        {firestoreSyncStatus === 'error' && '⚠️ Firestore Offline'}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewProfileName(`${customer.companyName || 'Smart Way'} - ${customer.salesEngineer || 'Rep'}`);
+                          setShowSaveModal(true);
+                        }}
+                        title="Save current company & sales rep details directly to Firestore"
+                        style={{
+                          background: '#0d1f38',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '7px 14px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <span>💾</span> Save As Profile
+                      </button>
+
+                      {selectedProfileId && (
+                        <button
+                          type="button"
+                          onClick={handleUpdateCurrentProfile}
+                          title="Update current profile directly in Firestore"
+                          style={{
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '7px 12px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Update
+                        </button>
+                      )}
+
+                      {selectedProfileId && companyProfiles.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteProfile}
+                          title="Delete selected profile from Firestore"
+                          style={{
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            border: '1px solid #fca5a5',
+                            borderRadius: 8,
+                            padding: '7px 10px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {profileNotice && (
+                    <div style={{ gridColumn: '1 / -1', background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                      ✓ {profileNotice}
+                    </div>
+                  )}
+
+                  {/* Save Company Profile Modal */}
+                  {showSaveModal && (
+                    <div style={{
+                      position: 'fixed',
+                      inset: 0,
+                      background: 'rgba(15, 23, 42, 0.65)',
+                      backdropFilter: 'blur(4px)',
+                      zIndex: 99999,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 16
+                    }}>
+                      <div style={{
+                        background: '#ffffff',
+                        borderRadius: 14,
+                        padding: '24px 28px',
+                        width: '100%',
+                        maxWidth: 440,
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                        border: '1px solid #e2e8f0',
+                        color: '#0f172a'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>🏢</span> Save Company Profile
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setShowSaveModal(false)}
+                            style={{ background: 'none', border: 'none', fontSize: 18, color: '#94a3b8', cursor: 'pointer' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                          Save this company profile directly to <strong>Cloud Firestore</strong> (<code>company_profiles</code> collection). It will sync in real time and load whenever you log in.
+                        </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Profile Name / Label
+                          </label>
+                          <input
+                            type="text"
+                            value={newProfileName}
+                            onChange={(e) => setNewProfileName(e.target.value)}
+                            placeholder="e.g. Smart Way - Nilambur Main"
+                            style={{
+                              border: '1.5px solid #cbd5e1',
+                              borderRadius: 8,
+                              padding: '8px 12px',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              outline: 'none'
+                            }}
+                            autoFocus
+                          />
+                        </div>
+
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', marginBottom: 20, fontSize: 11, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div><strong>Company:</strong> {customer.companyName || 'SMART WAY SOLAR SOLUTIONS'}</div>
+                          <div><strong>Place:</strong> {customer.companyPlace || 'Nilambur, Malappuram, Kerala'}</div>
+                          <div><strong>Rep 1:</strong> {customer.salesEngineer || 'Harshed illikkal'} {customer.salesEngineerPhone ? `(${customer.salesEngineerPhone})` : ''}</div>
+                          {customer.salesEngineer2 && (
+                            <div><strong>Rep 2:</strong> {customer.salesEngineer2} {customer.salesEngineerPhone2 ? `(${customer.salesEngineerPhone2})` : ''}</div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowSaveModal(false)}
+                            style={{
+                              background: '#f1f5f9',
+                              color: '#475569',
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '8px 16px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveNewProfile}
+                            disabled={!newProfileName.trim()}
+                            style={{
+                              background: '#0d1f38',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '8px 18px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: newProfileName.trim() ? 'pointer' : 'not-allowed',
+                              opacity: newProfileName.trim() ? 1 : 0.6
+                            }}
+                          >
+                            Save Profile
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Company Name</label>
                     <input
@@ -1368,6 +1871,18 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                       aria-label="Company name"
                       onChange={e => setCustomer(p => ({ ...p, companyName: e.target.value.toUpperCase() }))}
                       placeholder="SMART WAY SOLAR SOLUTIONS"
+                      autoComplete="off"
+                      style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, outline: 'none', minWidth: 170 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Company Place</label>
+                    <input
+                      type="text"
+                      value={customer.companyPlace || ''}
+                      aria-label="Company place"
+                      onChange={e => setCustomer(p => ({ ...p, companyPlace: e.target.value }))}
+                      placeholder="Nilambur, Malappuram, Kerala"
                       autoComplete="off"
                       style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, outline: 'none', minWidth: 170 }}
                     />
@@ -1409,7 +1924,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Who Prepared (Sales Rep)</label>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Sales Rep 1 (Name)</label>
                     <input
                       type="text"
                       value={customer.salesEngineer || ''}
@@ -1420,12 +1935,34 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Footer Phone (Contact)</label>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Rep 1 Phone</label>
                     <input
                       type="text"
                       value={customer.salesEngineerPhone || ''}
                       onChange={e => setCustomer(p => ({ ...p, salesEngineerPhone: e.target.value }))}
                       placeholder="e.g. 9946236101"
+                      autoComplete="off"
+                      style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, outline: 'none', minWidth: 130 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Sales Rep 2 (Name)</label>
+                    <input
+                      type="text"
+                      value={customer.salesEngineer2 || ''}
+                      onChange={e => setCustomer(p => ({ ...p, salesEngineer2: e.target.value.toUpperCase() }))}
+                      placeholder="e.g. SECOND REP (OPTIONAL)"
+                      autoComplete="off"
+                      style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, outline: 'none', minWidth: 150 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Rep 2 Phone</label>
+                    <input
+                      type="text"
+                      value={customer.salesEngineerPhone2 || ''}
+                      onChange={e => setCustomer(p => ({ ...p, salesEngineerPhone2: e.target.value }))}
+                      placeholder="e.g. 9876543210"
                       autoComplete="off"
                       style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, outline: 'none', minWidth: 130 }}
                     />
@@ -1601,12 +2138,15 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                     <div className="p1-company-block">
                       <div className="p1-info-label">PREPARED BY</div>
                       <div className="p1-company-name">{customer.companyName || 'SMART WAY SOLAR SOLUTIONS'}</div>
-                      {customer.salesEngineer && (
-                        <div style={{ fontSize: 11, color: '#f8fafc', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Rep: {customer.salesEngineer} {customer.salesEngineerPhone ? `· ${customer.salesEngineerPhone}` : ''}
+                      <div style={{ fontSize: 11, color: '#f8fafc', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Rep: {rep1Name} {rep1Phone ? `· 📞 ${rep1Phone}` : ''}
+                      </div>
+                      {rep2Name && (
+                        <div style={{ fontSize: 11, color: '#f8fafc', fontWeight: 700, marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Rep: {rep2Name} {rep2Phone ? `· 📞 ${rep2Phone}` : ''}
                         </div>
                       )}
-                      <div className="p1-company-addr">Nilambur, Malappuram, Kerala</div>
+                      <div className="p1-company-addr">{customer.companyPlace || 'Nilambur, Malappuram, Kerala'}</div>
                     </div>
                     <div className="p1-divider-v"></div>
 
@@ -1636,9 +2176,15 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                   </div>
 
                   <div className="p3-content" style={{ padding: '0 60px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#F59E0B', marginBottom: 4 }}>{selected.dcKw} kW {selected.isHybrid ? 'Hybrid' : 'Ongrid'} System</div>
-                      <div style={{ fontSize: 13, color: '#94A3B8', fontWeight: 600 }}>{customer.name ? `Prepared for: ${customer.name}` : 'Detailed Pricing Breakdown'}</div>
+                    <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#F59E0B', marginBottom: 4 }}>{selected.dcKw} kW {selected.isHybrid ? 'Hybrid' : 'Ongrid'} System</div>
+                        <div style={{ fontSize: 13, color: '#94A3B8', fontWeight: 600 }}>{customer.name ? `Prepared for: ${customer.name}` : 'Detailed Pricing Breakdown'}</div>
+                      </div>
+                      <div style={{ textAlign: 'right', fontSize: 11, color: '#CBD5E1', fontWeight: 600 }}>
+                        <div>Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep1Name}</span> {rep1Phone && <span style={{ color: '#38BDF8' }}>📞 {rep1Phone}</span>}</div>
+                        {rep2Name && <div style={{ marginTop: 2 }}>Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> {rep2Phone && <span style={{ color: '#38BDF8' }}>📞 {rep2Phone}</span>}</div>}
+                      </div>
                     </div>
 
                     <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
@@ -1727,7 +2273,10 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                       <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>Proposal For</div>
                       <div style={{ fontSize: 16, color: '#F1F5F9', fontWeight: 700 }}>{customer.name || 'Valued Customer'}</div>
                       <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                        Prepared by: <span style={{ color: '#F59E0B' }}>{customer.salesEngineer || 'Harshed illikkal'}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{customer.salesEngineerPhone || '9946236101'}</span>
+                        Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep1Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep1Phone}</span>
+                        {rep2Name && (
+                          <> &nbsp;|&nbsp; <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep2Phone}</span></>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -1745,7 +2294,11 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                       <p className="p3-subtitle">TECHNICAL SPECIFICATION</p>
                       <h2 className="p3-title">Bill of <span style={{ color: '#F59E0B', fontStyle: 'italic' }}>Materials</span></h2>
                     </div>
-                    <img src="/transp.png" alt="Solartech" className="p3-logo-premium" />
+                    <div style={{ textAlign: 'right', fontSize: 11, color: '#CBD5E1', fontWeight: 600, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      <img src="/transp.png" alt="Solartech" className="p3-logo-premium" style={{ marginBottom: 4 }} />
+                      <div>Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep1Name}</span> {rep1Phone && <span style={{ color: '#38BDF8' }}>📞 {rep1Phone}</span>}</div>
+                      {rep2Name && <div>Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> {rep2Phone && <span style={{ color: '#38BDF8' }}>📞 {rep2Phone}</span>}</div>}
+                    </div>
                   </div>
 
                   <div className="p3-content" style={{ padding: '0 60px', flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -1787,7 +2340,10 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                       <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>Proposal For</div>
                       <div style={{ fontSize: 16, color: '#F1F5F9', fontWeight: 700 }}>{customer.name || 'Valued Customer'}</div>
                       <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                        Prepared by: <span style={{ color: '#F59E0B' }}>{customer.salesEngineer || 'Harshed illikkal'}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{customer.salesEngineerPhone || '9946236101'}</span>
+                        Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep1Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep1Phone}</span>
+                        {rep2Name && (
+                          <> &nbsp;|&nbsp; <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep2Phone}</span></>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -1914,12 +2470,20 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                             <div>
                               <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Authorised EPC Partner</div>
                               <div style={{ fontSize: 16, color: '#F1F5F9', fontWeight: 900, marginTop: 2 }}>{customer.companyName || 'SMART WAY SOLAR SOLUTIONS'}</div>
-                              <div style={{ fontSize: 11, color: '#CBD5E1', marginTop: 4 }}>Nilambur, Malappuram Dist, Kerala &nbsp;·&nbsp; smartwaysolar@gmail.com</div>
+                              <div style={{ fontSize: 11, color: '#CBD5E1', marginTop: 4 }}>{customer.companyPlace || 'Nilambur, Malappuram, Kerala'}</div>
                             </div>
-                            <div style={{ textAlign: 'right' }}>
+                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: rep2Name ? 4 : 2 }}>
                               <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Sales &amp; Engineering Desk</div>
-                              <div style={{ fontSize: 14, color: '#F59E0B', fontWeight: 800, marginTop: 2 }}>{customer.salesEngineer || 'Harshed illikkal'}</div>
-                              <div style={{ fontSize: 13, color: '#38BDF8', fontWeight: 800, marginTop: 2 }}>📞 {customer.salesEngineerPhone || '9946236101'}</div>
+                              <div>
+                                <span style={{ fontSize: rep2Name ? 13 : 14, color: '#F59E0B', fontWeight: 800 }}>{rep1Name}</span>
+                                {rep1Phone && <span style={{ fontSize: rep2Name ? 12 : 13, color: '#38BDF8', fontWeight: 800, marginLeft: 8 }}>📞 {rep1Phone}</span>}
+                              </div>
+                              {rep2Name && (
+                                <div>
+                                  <span style={{ fontSize: 13, color: '#F59E0B', fontWeight: 800 }}>{rep2Name}</span>
+                                  {rep2Phone && <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, marginLeft: 8 }}>📞 {rep2Phone}</span>}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1930,7 +2494,10 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                             <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>Proposal For</div>
                             <div style={{ fontSize: 16, color: '#F1F5F9', fontWeight: 700 }}>{customer.name || 'Valued Customer'}</div>
                             <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                              Prepared by: <span style={{ color: '#F59E0B' }}>{customer.salesEngineer || 'Harshed illikkal'}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{customer.salesEngineerPhone || '9946236101'}</span>
+                              Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep1Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep1Phone}</span>
+                        {rep2Name && (
+                          <> &nbsp;|&nbsp; <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep2Phone}</span></>
+                        )}
                             </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
