@@ -333,12 +333,12 @@ export default function TeamPortalPage() {
         </div>
 
         {/* Role Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none py-1 sm:py-0 touch-pan-x">
           {['ALL', 'PENDING', 'ADMIN', 'SALES', 'FINANCE', 'VENDOR', 'VIEWER'].map(filterOption => (
             <button
               key={filterOption}
               onClick={() => setRoleFilter(filterOption)}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                 roleFilter === filterOption
                   ? 'bg-[var(--app-accent,#CC785C)] text-white shadow-xs'
                   : 'bg-[var(--app-surface-subtle,#334155)]/50 text-[var(--app-text-secondary,#cbd5e1)] hover:text-white hover:bg-[var(--app-surface-hover,#475569)]'
@@ -431,16 +431,16 @@ export default function TeamPortalPage() {
                   </div>
 
                   {/* Role Assignment Controls */}
-                  <div className="flex flex-wrap items-center gap-3 md:self-center">
+                  <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full sm:w-auto justify-start md:self-center">
                     
                     {/* Role Selector / Editor */}
                     {isAdmin ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <select
                           value={member.role || 'pending'}
                           disabled={updatingRole[member.id || member.uid]}
                           onChange={(e) => handleAssignRole(member.id || member.uid, e.target.value)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer outline-none shadow-xs ${currentRoleDef.color}`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer outline-none shadow-xs w-full sm:w-auto ${currentRoleDef.color}`}
                         >
                           <option value="admin" className="bg-slate-900 text-purple-300">👑 Administrator (Full Access)</option>
                           <option value="sales" className="bg-slate-900 text-amber-300">☀️ Sales Engineer</option>
@@ -454,7 +454,7 @@ export default function TeamPortalPage() {
                         {isPending && (
                           <button
                             onClick={() => handleQuickApprove(member.id || member.uid, 'sales')}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                             title="Quick Approve as Sales Engineer"
                           >
                             <UserCheck className="w-3.5 h-3.5" />

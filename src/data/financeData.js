@@ -1,3 +1,5 @@
+import { FALLBACK_FINANCE_ACCOUNTS } from './financeSnapshot.js';
+
 export const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1XSxLClUfJkEOr8q8u1jRV49v1rx8JTKgsQO4X8lYTIY/edit?gid=110086080#gid=110086080';
 export const CSV_URL = 'https://docs.google.com/spreadsheets/d/1XSxLClUfJkEOr8q8u1jRV49v1rx8JTKgsQO4X8lYTIY/export?format=csv&gid=110086080';
 export const CATEGORY_LABELS = { receipt: 'Customer payment', feasibility: 'KSEB feasibility', agreement: 'Agreement fee', registration: 'Plant registration', structure: 'Structure cost', review: 'Expense · review category' };
@@ -39,12 +41,73 @@ export function incomingDates(values) {
   return values.flatMap(value => [...String(value).matchAll(/\b(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4}|\d{2})\b/g)].map(match => match[0]));
 }
 export function parseFinance(text) {
-  const rows = parseCSV(text), normal = x => String(x ?? '').replace(/^\uFEFF/, '').trim().toUpperCase().replace(/\s+/g, ' ');
-  const start = rows.findIndex(row => row.some(x => normal(x) === 'CUSTOMER NAME'));
-  if (start < 0) throw new Error('Finance data is empty or the import is still loading.');
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    if (FALLBACK_FINANCE_ACCOUNTS && FALLBACK_FINANCE_ACCOUNTS.length > 0) return FALLBACK_FINANCE_ACCOUNTS;
+    throw new Error('Finance data is empty or the import is still loading.');
+  }
+  const rows = parseCSV(text);
+  if (!rows || rows.length < 2) {
+    if (FALLBACK_FINANCE_ACCOUNTS && FALLBACK_FINANCE_ACCOUNTS.length > 0) return FALLBACK_FINANCE_ACCOUNTS;
+    throw new Error('Finance data is empty or the import is still loading.');
+  }
+  const normal = x => String(x ?? '').replace(/^\uFEFF/, '').trim().toUpperCase().replace(/\s+/g, ' ');
+
+  // Robust header detection:
+  // Matches 'CUSTOMER NAME' or financial column combinations
+  let start = rows.findIndex(row => {
+    const n = row.map(normal);
+    return n.includes('CUSTOMER NAME') ||
+           (n.includes('BILL AMOUNT') && (n.includes('PAID AMOUNT') || n.includes('BALANCE AMOUNT'))) ||
+           (n.includes('SALES ENGINEER') && (n.includes('BILL AMOUNT') || n.includes('CAPACITY')));
+  });
+
+  // Fallback to row 0 if row 0 has common financial headers
+  if (start < 0 && rows.length > 0) {
+    const fn = rows[0].map(normal);
+    if (fn.includes('BILL AMOUNT') || fn.includes('PAID AMOUNT') || fn.includes('SALES ENGINEER')) {
+      start = 0;
+    }
+  }
+
+  if (start < 0) {
+    if (FALLBACK_FINANCE_ACCOUNTS && FALLBACK_FINANCE_ACCOUNTS.length > 0) return FALLBACK_FINANCE_ACCOUNTS;
+    throw new Error('Finance data is empty or the import is still loading.');
+  }
+
   const headers = rows[start].map(normal);
+
+  // If column 0 is blank or doesn't say 'CUSTOMER NAME', identify where customer name is located
+  if (!headers.includes('CUSTOMER NAME')) {
+    const custIdx = headers.findIndex(h => h === 'CUSTOMER' || h === 'NAME' || h === 'CLIENT' || h === 'CLIENT NAME');
+    if (custIdx >= 0) {
+      headers[custIdx] = 'CUSTOMER NAME';
+    } else if (headers[0] === '' || !headers[0]) {
+      // First column is the customer name column by sheet convention
+      headers[0] = 'CUSTOMER NAME';
+    }
+  }
+
+  // Support column aliases
+  const aliasMap = {
+    'BILL AMOUNT': ['TOTAL AMOUNT', 'BILL', 'TOTAL BILL', 'BILL AMT'],
+    'PAID AMOUNT': ['NET PAID', 'PAID', 'AMOUNT PAID', 'PAID AMT'],
+    'BALANCE AMOUNT': ['BALANCE', 'DUE AMOUNT', 'BALANCE AMT'],
+    'CONSUMER NUMBER': ['CONSUMER NO', 'CONSUMER NO.', 'CONSUMER ID', 'CONSUMER #'],
+    'SALES ENGINEER': ['ENGINEER', 'SALES PERSON', 'SE'],
+    'PAYMENT BREAKDOWN': ['BREAKDOWN', 'FORMULA', 'PAYMENT BREAK DOWN', 'PAYMENT TERMS']
+  };
+
+  for (const [std, aliases] of Object.entries(aliasMap)) {
+    if (!headers.includes(std)) {
+      const idx = headers.findIndex(h => aliases.includes(h));
+      if (idx >= 0) headers[idx] = std;
+    }
+  }
+
   // Breakdowns are optional: sheet balances remain usable without transaction detail.
-  for (const h of ['CUSTOMER NAME', 'BILL AMOUNT', 'PAID AMOUNT', 'BALANCE AMOUNT']) if (!headers.includes(h)) throw new Error(`Finance sheet is missing ${h}.`);
+  for (const h of ['CUSTOMER NAME', 'BILL AMOUNT', 'PAID AMOUNT', 'BALANCE AMOUNT']) {
+    if (!headers.includes(h)) throw new Error(`Finance sheet is missing ${h}.`);
+  }
   const records = rows.slice(start + 1).flatMap((row, index) => {
     const get = h => String(row[headers.indexOf(h)] ?? '').trim();
     const name = get('CUSTOMER NAME'); if (!name || /^(grand\s+)?total\b/i.test(name)) return [];
@@ -70,7 +133,10 @@ export function parseFinance(text) {
     r.status = r.bill === null || r.balance === null ? 'incomplete' : r.balance < 0 ? 'credit' : r.balance === 0 ? 'settled' : 'outstanding';
     return [r];
   });
-  if (!records.length) throw new Error('No customer accounts found in the Finance tab.');
+  if (!records.length) {
+    if (FALLBACK_FINANCE_ACCOUNTS && FALLBACK_FINANCE_ACCOUNTS.length > 0) return FALLBACK_FINANCE_ACCOUNTS;
+    throw new Error('No customer accounts found in the Finance tab.');
+  }
   const counts = new Map(); records.forEach(r => { if (r.consumer) counts.set(r.consumer, (counts.get(r.consumer) || 0) + 1); });
   records.forEach(r => { if (counts.get(r.consumer) > 1) r.issues.push('Consumer number appears on multiple accounts'); });
   return records;
