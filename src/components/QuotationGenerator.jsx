@@ -1620,7 +1620,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
 
                   {/* Header strip at bottom-most */}
                   <div className="p1-header-strip">
-                    <img src="/quotation_header.png" width="1011" height="194" alt="Solar Tech and Tata Power Solaroof" className="p1-header-img" />
+                    <img src="/tatapower transp.png" alt="Tata Power Solaroof" className="p1-header-img" />
                   </div>
 
                 </div>
