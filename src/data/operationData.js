@@ -8,6 +8,19 @@ export function deliveryDateKey(value) {
   return year * 10000 + month * 100 + day;
 }
 
+/**
+ * Formats any recognized delivery date string (e.g. 16/07/26, 12-09-2026, 31.07.2026)
+ * into a consistent, readable format: DD/MM/YYYY (e.g. 16/07/2026).
+ */
+export function formatDeliveryDate(value) {
+  const key = deliveryDateKey(value);
+  if (key === null) return String(value || '').trim() || 'Not recorded';
+  const year = Math.floor(key / 10000);
+  const month = String(Math.floor((key % 10000) / 100)).padStart(2, '0');
+  const day = String(key % 100).padStart(2, '0');
+  return `${day}/${month}/${year}`;
+}
+
 export function deliveredCustomers(records, today = new Date()) {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(today);
   const part = type => Number(parts.find(p => p.type === type).value);
