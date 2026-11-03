@@ -1,23 +1,28 @@
 {
-  "name": "Solartech Nilambur CRM",
-  "short_name": "Solartech CRM",
-  "description": "Solartech Nilambur Customer Relationship Management",
+  "name": "SmartWay Solar CRM",
+  "short_name": "SmartWay",
+  "description": "SmartWay Solar CRM, Installation Operations & KSEB Calculator",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0d1f38",
-  "theme_color": "#0d1f38",
+  "background_color": "#181715",
+  "theme_color": "#CC785C",
   "icons": [
     {
-      "src": "/logo-512.png",
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/logo-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

@@ -35,7 +35,8 @@ import {
   Menu,
   X,
   LayoutGrid,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
 
 function AppContent() {
@@ -48,6 +49,49 @@ function AppContent() {
   const [selectedCustomerForQuote, setSelectedCustomerForQuote] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileTabListRef = useRef(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(() => {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  });
+
+  // Listen for PWA beforeinstallprompt event
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setIsStandalone(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      // Fallback instructions for iOS Safari or browsers without prompt event
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert('To install SmartWay on iPhone/iPad: Tap the Share button in Safari, then select "Add to Home Screen".');
+      } else {
+        alert('To install SmartWay: Click the install/download icon in your browser address bar, or open your browser menu (⋮) and select "Install SmartWay" or "Add to Home Screen".');
+      }
+    }
+  };
 
   // Auto-scroll active tab into view in mobile tab bar
   useEffect(() => {
@@ -305,6 +349,18 @@ function AppContent() {
             {/* User Profile & Quick Actions */}
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
 
+              {/* INSTALL APP BUTTON (PWA) */}
+              {!isStandalone && (
+                <button
+                  onClick={handleInstallApp}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-subtle)] hover:bg-[var(--app-accent)] hover:text-white text-[var(--app-accent-text)] transition shadow-xs cursor-pointer shrink-0 text-xs font-bold"
+                  title="Install SmartWay App"
+                >
+                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--app-accent)] hover:text-white" />
+                  <span className="hidden sm:inline">Install App</span>
+                </button>
+              )}
+
               {/* THEME TOGGLE */}
               <button
                 onClick={toggleTheme}
@@ -522,6 +578,29 @@ function AppContent() {
                 );
               })}
             </div>
+
+            {/* Mobile App Install Button inside Drawer */}
+            {!isStandalone && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-[var(--app-accent)]/15 to-[var(--app-accent)]/5 border border-[var(--app-accent-border)] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <img src="/favicon.png" alt="App Icon" className="w-9 h-9 rounded-xl shadow-xs shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold text-[var(--app-text-primary)]">Install SmartWay App</div>
+                    <div className="text-[10px] text-[var(--app-text-secondary)]">Fast home screen access, runs standalone</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleInstallApp();
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--app-accent)] text-white text-xs font-bold shadow-sm shrink-0 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Install</span>
+                </button>
+              </div>
+            )}
 
             {/* User Profile Bar inside Drawer */}
             <div className="pt-3 border-t border-[var(--app-border)] flex items-center justify-between gap-2">
