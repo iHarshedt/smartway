@@ -2170,11 +2170,11 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                       <div className="p1-info-label">PREPARED BY</div>
                       <div className="p1-company-name">{customer.companyName || 'SMART WAY SOLAR SOLUTIONS'}</div>
                       <div style={{ fontSize: 11, color: '#f8fafc', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Rep: {rep1Name} {rep1Phone ? `· 📞 ${rep1Phone}` : ''}
+                        {rep1Name} {rep1Phone ? `· 📞 ${rep1Phone}` : ''}
                       </div>
                       {rep2Name && (
                         <div style={{ fontSize: 11, color: '#f8fafc', fontWeight: 700, marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Rep: {rep2Name} {rep2Phone ? `· 📞 ${rep2Phone}` : ''}
+                          {rep2Name} {rep2Phone ? `· 📞 ${rep2Phone}` : ''}
                         </div>
                       )}
                       <div className="p1-company-addr">{customer.companyPlace || 'Nilambur, Malappuram, Kerala'}</div>
@@ -2266,8 +2266,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                           ) : (
                             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                               <td style={{ padding: '12px 16px', color: '#CBD5E1', fontWeight: 500 }}>Structure Cost</td>
-                              <td style={{ textAlign: 'right', padding: '12px 16px', color: '#94A3B8', fontSize: 11, fontStyle: 'italic', fontWeight: 500 }}>
-                                Depends on type of roof &amp; site conditions
+                              <td style={{ textAlign: 'right', padding: '12px 16px', color: '#F59E0B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Customer Scope
                               </td>
                             </tr>
                           )}
