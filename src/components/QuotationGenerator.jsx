@@ -855,7 +855,7 @@ const DEFAULT_COMPANY_PROFILES = [
     name: 'Smart Way - Nilambur Main',
     companyName: 'SMART WAY SOLAR SOLUTIONS',
     companyPlace: 'Nilambur, Malappuram, Kerala',
-    salesEngineer: 'HARSHED ILLIKKAL',
+    salesEngineer: 'Anvar Sadath',
     salesEngineerPhone: '9946236101',
     salesEngineer2: '',
     salesEngineerPhone2: ''
@@ -864,9 +864,23 @@ const DEFAULT_COMPANY_PROFILES = [
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────
 export default function QuotationGenerator({ leads = [], customers = [], initialCustomer = null }) {
-  const { user } = useAuth();
-  const [companyProfiles, setCompanyProfiles] = useState(DEFAULT_COMPANY_PROFILES);
-  const [selectedProfileId, setSelectedProfileId] = useState(DEFAULT_COMPANY_PROFILES[0].id);
+  const { user, userProfile } = useAuth();
+  const loggedInUserName = (userProfile?.name || user?.displayName || user?.email?.split('@')[0] || '').trim();
+  const defaultRepName = loggedInUserName || 'HARSHED ILLIKKAL';
+
+  const [companyProfiles, setCompanyProfiles] = useState(() => [
+    {
+      id: 'default_smartway_nilambur',
+      name: 'Smart Way - Nilambur Main',
+      companyName: 'SMART WAY SOLAR SOLUTIONS',
+      companyPlace: 'Nilambur, Malappuram, Kerala',
+      salesEngineer: defaultRepName,
+      salesEngineerPhone: userProfile?.phone || '9946236101',
+      salesEngineer2: '',
+      salesEngineerPhone2: ''
+    }
+  ]);
+  const [selectedProfileId, setSelectedProfileId] = useState('default_smartway_nilambur');
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
@@ -879,8 +893,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
     name: initialCustomer?.customerName || initialCustomer?.name || '',
     phone: initialCustomer?.phone || '',
     place: initialCustomer?.address || initialCustomer?.place || initialCustomer?.section || '',
-    salesEngineer: initialCustomer?.salesEngineer || 'Harshed illikkal',
-    salesEngineerPhone: initialCustomer?.salesEngineerPhone || '9946236101',
+    salesEngineer: initialCustomer?.salesEngineer || defaultRepName,
+    salesEngineerPhone: initialCustomer?.salesEngineerPhone || userProfile?.phone || '9946236101',
     salesEngineer2: initialCustomer?.salesEngineer2 || '',
     salesEngineerPhone2: initialCustomer?.salesEngineerPhone2 || '',
     ksebBiMonthlyBill: initialCustomer?.ksebBiMonthlyBill || '',
@@ -889,6 +903,23 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
     companyPlace: 'Nilambur, Malappuram, Kerala'
   });
 
+  // Update sales representative when logged in user becomes available
+  useEffect(() => {
+    if (loggedInUserName) {
+      setCustomer(prev => {
+        const currentLower = (prev.salesEngineer || '').toLowerCase();
+        if (!prev.salesEngineer || currentLower === 'harshed illikkal' || currentLower === 'anvar sadath c') {
+          return {
+            ...prev,
+            salesEngineer: loggedInUserName.toUpperCase(),
+            salesEngineerPhone: userProfile?.phone || prev.salesEngineerPhone || '9946236101'
+          };
+        }
+        return prev;
+      });
+    }
+  }, [loggedInUserName, userProfile]);
+
   // Helper to apply profile to customer state
   const applyProfile = useCallback((profile) => {
     if (!profile) return;
@@ -896,12 +927,12 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
       ...prev,
       companyName: profile.companyName || prev.companyName || 'SMART WAY SOLAR SOLUTIONS',
       companyPlace: profile.companyPlace || prev.companyPlace || 'Nilambur, Malappuram, Kerala',
-      salesEngineer: profile.salesEngineer || prev.salesEngineer || 'HARSHED ILLIKKAL',
-      salesEngineerPhone: profile.salesEngineerPhone || prev.salesEngineerPhone || '9946236101',
+      salesEngineer: profile.salesEngineer || prev.salesEngineer || defaultRepName,
+      salesEngineerPhone: profile.salesEngineerPhone || prev.salesEngineerPhone || userProfile?.phone || '9946236101',
       salesEngineer2: profile.salesEngineer2 ?? prev.salesEngineer2 ?? '',
       salesEngineerPhone2: profile.salesEngineerPhone2 ?? prev.salesEngineerPhone2 ?? ''
     }));
-  }, []);
+  }, [defaultRepName, userProfile]);
 
   // Real-time Firestore sync: load and listen to company profiles directly from Firestore
   useEffect(() => {
@@ -1007,7 +1038,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
     if (target) {
       applyProfile(target);
       if (db && user?.uid) {
-        setDoc(doc(db, 'company_profiles', user.uid), { lastActiveId: target.id }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'company_profiles', user.uid), { lastActiveId: target.id }, { merge: true }).catch(() => { });
       }
       setProfileNotice(`Loaded profile: ${target.name}`);
       setTimeout(() => setProfileNotice(''), 3000);
@@ -1109,8 +1140,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
         name: (initialCustomer.customerName || initialCustomer.name || '').toUpperCase(),
         phone: initialCustomer.phone || '',
         place: (initialCustomer.address || initialCustomer.place || initialCustomer.section || '').toUpperCase(),
-        salesEngineer: (initialCustomer.salesEngineer || prev.salesEngineer || 'Harshed illikkal').toUpperCase(),
-        salesEngineerPhone: initialCustomer.salesEngineerPhone || prev.salesEngineerPhone || '9946236101',
+        salesEngineer: (initialCustomer.salesEngineer || prev.salesEngineer || defaultRepName).toUpperCase(),
+        salesEngineerPhone: initialCustomer.salesEngineerPhone || prev.salesEngineerPhone || userProfile?.phone || '9946236101',
         salesEngineer2: (initialCustomer.salesEngineer2 || prev.salesEngineer2 || '').toUpperCase(),
         salesEngineerPhone2: initialCustomer.salesEngineerPhone2 || prev.salesEngineerPhone2 || '',
         ksebBiMonthlyBill: initialCustomer.ksebBiMonthlyBill || '',
@@ -1290,8 +1321,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
   const totalProjectCost = totalSystemCost + ksebTotal + structureCost;
   const endCustomerPrice = totalProjectCost - subsidyAmount;
 
-  let rep1Name = customer.salesEngineer || 'Harshed illikkal';
-  let rep1Phone = customer.salesEngineerPhone || '9946236101';
+  let rep1Name = customer.salesEngineer || defaultRepName;
+  let rep1Phone = customer.salesEngineerPhone || userProfile?.phone || '9946236101';
   let rep2Name = customer.salesEngineer2 || '';
   let rep2Phone = customer.salesEngineerPhone2 || '';
 
@@ -1318,8 +1349,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
       name: '',
       phone: '',
       place: '',
-      salesEngineer: 'Harshed illikkal',
-      salesEngineerPhone: '9946236101',
+      salesEngineer: defaultRepName,
+      salesEngineerPhone: userProfile?.phone || '9946236101',
       salesEngineer2: '',
       salesEngineerPhone2: '',
       ksebBiMonthlyBill: '',
@@ -1348,7 +1379,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
     if (isGeneratingPdf) return;
     setIsGeneratingPdf(true);
     setExportError('');
-    
+
     try {
       const jsPDF = (await import('jspdf')).default;
       const html2canvas = (await import('html2canvas')).default;
@@ -1370,11 +1401,11 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
           img.addEventListener('error', resolve, { once: true });
         });
       })));
-      
+
       if (pages.length === 0) {
         throw new Error('No quotation pages are available to export.');
       }
-      
+
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
         const canvas = await html2canvas(page, {
@@ -1382,11 +1413,11 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
           useCORS: true,
           logging: false
         });
-        
+
         const imgData = canvas.toDataURL('image/jpeg', quality.jpeg);
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
+
         const sheetHeight = pdf.internal.pageSize.getHeight();
         for (let offset = 0; offset < pdfHeight - 0.5; offset += sheetHeight) {
           if (i > 0 || offset > 0) pdf.addPage();
@@ -1395,7 +1426,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
         canvas.width = 0;
         canvas.height = 0;
       }
-      
+
       const recipient = customer.name || 'Customer';
       const comp = (customer.companyName || 'SmartWay').replace(/[^a-zA-Z0-9]/g, '_');
       pdf.save(`${comp}_Detailed_Proposal_${recipient.replace(/[^a-zA-Z0-9_-]/g, '_')}_${selected.dcKw}kW.pdf`);
@@ -1929,7 +1960,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                       type="text"
                       value={customer.salesEngineer || ''}
                       onChange={e => setCustomer(p => ({ ...p, salesEngineer: e.target.value.toUpperCase() }))}
-                      placeholder="e.g. HARSHED ILLIKKAL"
+                      placeholder="e.g. Anvar Sadath C"
                       autoComplete="off"
                       style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, outline: 'none', minWidth: 150 }}
                     />
@@ -2257,7 +2288,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                         </tbody>
                       </table>
                     </div>
- 
+
                     {structureCost === 0 && (!selected.structure || selected.structure === 'Without Structure') && (
                       <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(245, 158, 11, 0.1)', borderLeft: '4px solid #F59E0B', borderRadius: 8 }}>
                         <p style={{ margin: 0, fontSize: 12, color: '#FCD34D', fontWeight: 500, lineHeight: 1.5 }}>
@@ -2286,8 +2317,8 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                   </div>
                 </div>
 
-                
-{/* PAGE 3: BILL OF MATERIALS */}
+
+                {/* PAGE 3: BILL OF MATERIALS */}
                 <div className="page p3-page" style={{ backgroundColor: '#0F172A', color: '#F8FAFC', width: '794px', minHeight: '1122px', height: '1122px', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
                   <div className="p3-header" style={{ paddingBottom: 20 }}>
                     <div className="p3-header-text">
@@ -2353,7 +2384,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                   </div>
                 </div>
 
-                
+
                 {/* PAGE 4: GUARANTEES, SCOPE & ENVIRONMENTAL IMPACT */}
                 <div className="page p3-page" style={{ backgroundColor: '#0F172A', color: '#F8FAFC', width: '794px', minHeight: '1122px', height: '1122px', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
                   {(() => {
@@ -2374,7 +2405,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                         </div>
 
                         <div className="p3-content" style={{ padding: '0 60px', flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
-                          
+
                           {/* 1. WARRANTY & GUARANTEE CARDS */}
                           <div>
                             <div style={{ fontSize: 10, color: '#F59E0B', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
@@ -2495,9 +2526,9 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                             <div style={{ fontSize: 16, color: '#F1F5F9', fontWeight: 700 }}>{customer.name || 'Valued Customer'}</div>
                             <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
                               Prepared by: <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep1Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep1Phone}</span>
-                        {rep2Name && (
-                          <> &nbsp;|&nbsp; <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep2Phone}</span></>
-                        )}
+                              {rep2Name && (
+                                <> &nbsp;|&nbsp; <span style={{ color: '#F59E0B', fontWeight: 700 }}>{rep2Name}</span> &nbsp;·&nbsp; 📞 <span style={{ color: '#38BDF8' }}>{rep2Phone}</span></>
+                              )}
                             </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -2509,7 +2540,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                     );
                   })()}
                 </div>
-</>
+              </>
             )}
 
             {subTab === 'pricelist' && (
@@ -2630,7 +2661,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                           NON_DCR_PRICE_DATA.map((p, pi) => {
                             const isSelectedSystem = pi === selectedIdx;
                             const availableStructs = Object.keys(p.structures);
-                            
+
                             return availableStructs.map((struct, si) => {
                               const structData = p.structures[struct];
                               const mp = structData.maxPrice;
@@ -2662,7 +2693,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                           MICRO_PRICE_DATA.map((p, pi) => {
                             const isSelectedSystem = pi === selectedIdx;
                             const availableStructs = Object.keys(p.structures);
-                            
+
                             return availableStructs.map((struct, si) => {
                               const structData = p.structures[struct];
                               const mp = structData.maxPrice;
@@ -2694,7 +2725,7 @@ export default function QuotationGenerator({ leads = [], customers = [], initial
                           CI_PRICE_DATA.map((p, pi) => {
                             const isSelectedSystem = pi === selectedIdx;
                             const availableStructs = Object.keys(p.structures);
-                            
+
                             return availableStructs.map((struct, si) => {
                               const structData = p.structures[struct];
                               const mp = structData.maxPrice;
