@@ -28,7 +28,7 @@ import { useAuth } from '../context/AuthContext';
 import { CUSTOMER_RECORDS, GOOGLE_SHEET_URL } from '../data/customerData';
 import { CSV_URL, parseFinance } from '../data/financeData';
 import { FALLBACK_FINANCE_ACCOUNTS } from '../data/financeSnapshot';
-import { deliveryDateKey, formatDeliveryDate } from '../data/operationData';
+import { deliveryDateKey, formatDeliveryDate, getSectionFromConsumer } from '../data/operationData';
 import './FinanceLedgerPage.css';
 
 // Status styling and configuration for teams
@@ -265,17 +265,24 @@ export default function OperationPage() {
         if (a.name) seenNames.add(a.name.trim().toLowerCase());
 
         const assign = assignments[a.id] || {};
+        const consNo = a.consumer || matched?.consumerNo || '';
+        const mappedSec = getSectionFromConsumer(consNo);
+        const resolvedSection = mappedSec?.section || matched?.section || a.structure || '';
+        const resolvedCircle = mappedSec?.circle || matched?.circle || '';
+        const sectionCode = mappedSec?.code || '';
 
         list.push({
           id: a.id,
           customerName: a.name,
-          consumerNo: a.consumer || matched?.consumerNo || '',
+          consumerNo: consNo,
           phone: matched?.phone || '',
           deliveryDate: a.deliveryDate,
           formattedDeliveryDate: formatDeliveryDate(a.deliveryDate),
           deliveryKey: key,
           capacityKW: a.capacity || matched?.capacityKW || null,
-          section: matched?.section || a.structure || '',
+          section: resolvedSection,
+          circle: resolvedCircle,
+          sectionCode: sectionCode,
           salesEngineer: a.engineer || matched?.salesEngineer || '',
           rawAccount: a,
           // Operational teams assignment state
@@ -298,17 +305,23 @@ export default function OperationPage() {
           return;
         }
         const assign = assignments[c.id] || {};
+        const mappedSec = getSectionFromConsumer(consumerStr);
+        const resolvedSection = mappedSec?.section || c.section || '';
+        const resolvedCircle = mappedSec?.circle || c.circle || '';
+        const sectionCode = mappedSec?.code || '';
 
         list.push({
           id: c.id,
           customerName: c.customerName,
-          consumerNo: c.consumerNo || '',
+          consumerNo: consumerStr,
           phone: c.phone || '',
           deliveryDate: c.deliveryDate,
           formattedDeliveryDate: formatDeliveryDate(c.deliveryDate),
           deliveryKey: key,
           capacityKW: c.capacityKW || null,
-          section: c.section || '',
+          section: resolvedSection,
+          circle: resolvedCircle,
+          sectionCode: sectionCode,
           salesEngineer: c.salesEngineer || '',
           // Operational teams assignment state
           electricalTeam: assign.electricalTeam || '',
@@ -330,7 +343,7 @@ export default function OperationPage() {
   const filtered = useMemo(() => {
     return customers
       .filter(c =>
-        [c.customerName, c.consumerNo, c.phone, c.section, c.salesEngineer, c.electricalTeam, c.structuralTeam, c.remarks]
+        [c.customerName, c.consumerNo, c.phone, c.section, c.circle, c.sectionCode, c.salesEngineer, c.electricalTeam, c.structuralTeam, c.remarks]
           .join(' ')
           .toLowerCase()
           .includes(search.trim().toLowerCase()) &&
@@ -660,8 +673,35 @@ export default function OperationPage() {
 
                       {/* Capacity & Section */}
                       <td>
-                        {customer.capacityKW ? `${customer.capacityKW} kW` : '—'}
-                        <small>{customer.section || 'Section not recorded'}</small>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong style={{ fontSize: '13px' }}>
+                            {customer.capacityKW ? `${customer.capacityKW} kW` : '—'}
+                          </strong>
+                          {customer.sectionCode && (
+                            <span 
+                              style={{ 
+                                fontSize: '9px', 
+                                fontWeight: 700, 
+                                padding: '1px 5px', 
+                                borderRadius: '4px', 
+                                background: 'rgba(56, 189, 248, 0.1)', 
+                                color: '#38bdf8', 
+                                border: '1px solid rgba(56, 189, 248, 0.25)' 
+                              }}
+                              title={`KSEB Section Code: ${customer.sectionCode}`}
+                            >
+                              #{customer.sectionCode}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--app-text-secondary, #cbd5e1)', marginTop: '2px' }}>
+                          {customer.section || 'Section not recorded'}
+                        </div>
+                        {customer.circle && (
+                          <div style={{ fontSize: '10px', color: 'var(--app-text-muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Circle: {customer.circle}
+                          </div>
+                        )}
                       </td>
 
                       {/* Structural Team */}
@@ -861,7 +901,11 @@ export default function OperationPage() {
                   {editingCustomer.customerName}
                 </h3>
                 <p className="text-xs text-[var(--app-text-muted,#94a3b8)]">
-                  {editingCustomer.consumerNo ? `Consumer: ${editingCustomer.consumerNo}` : 'Consumer not recorded'} · Delivered: {editingCustomer.formattedDeliveryDate}
+                  {editingCustomer.consumerNo ? `Consumer: ${editingCustomer.consumerNo}` : 'Consumer not recorded'}
+                  {editingCustomer.section && ` · ${editingCustomer.section}`}
+                  {editingCustomer.sectionCode && ` (#${editingCustomer.sectionCode})`}
+                  {editingCustomer.circle && ` [${editingCustomer.circle}]`}
+                  {` · Delivered: ${editingCustomer.formattedDeliveryDate}`}
                 </p>
               </div>
               <button
